@@ -1,0 +1,2964 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+<script blocking="" fetchpriority="high" src="distill.bundle.js" type="module"></script>
+<script defer="" fetchpriority="low" src="main.bundle.js" type="module"></script>
+<script charset="utf-8" src="https://cdn.plot.ly/plotly-3.0.0.min.js"></script>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta charset="utf-8"/>
+<base target="_blank"/>
+<title>超大规模训练实战手册：在 GPU 集群上训练 LLM</title>
+<link href="assets/images/favicon.svg" rel="icon" type="image/svg+xml"/>
+<link href="style.css" rel="stylesheet"/>
+</head>
+<body>
+<d-front-matter>
+<script id="distill-front-matter" type="text/json">{
+    "title": "超大规模训练实战手册：在 GPU 集群上训练 LLM",
+    "description": "本书覆盖 2025 年扩展 LLM 训练所需的一切。",
+    "published": "2025 年 2 月 19 日",
+    "affiliation": {"name": "Hugging Face"},
+    "authors": [
+      {
+        "author":"Nouamane Tazi",
+        "authorURL":"https://huggingface.co/nouamanetazi"
+      },
+      {
+        "author":"Ferdinand Mom",
+        "authorURL":"https://huggingface.co/3outeille"
+      },
+      {
+        "author":"Haojun Zhao",
+        "authorURL":"https://huggingface.co/zzhhjjj"
+      },
+      {
+        "author":"Phuc Nguyen",
+        "authorURL":"https://huggingface.co/neuralink"
+      },
+      {
+        "author":"Mohamed Mekkouri",
+        "authorURL":"https://huggingface.co/medmekk"
+      },
+      {
+        "author":"Leandro Werra",
+        "authorURL":"https://huggingface.co/lvwerra"
+      },
+      {
+        "author":"Thomas Wolf",
+        "authorURL":"https://huggingface.co/thomwolf"
+      }
+    ],
+    "katex": {
+      "delimiters": [
+        {"left": "$$", "right": "$$", "display": false}
+      ]
+    }
+  }
+    </script>
+</d-front-matter>
+<d-title>
+<!-- Theme toggle icons (declared once in DOM for clarity; visibility controlled via JS) -->
+<img alt="Sun icon" id="sunIcon" src="assets/images/sun.svg" style="display:none;width:22px;height:22px;color:inherit"/>
+<img alt="Moon icon" id="moonIcon" src="assets/images/moon.svg" style="display:none;width:22px;height:22px;color:inherit"/>
+<h1 class="l-page" style="text-align: center;">超大规模训练实战手册：<br/>在 GPU 集群上训练 LLM</h1>
+<div class="main-plot-container l-screen" id="title-plot" style="overflow-x: hidden; width: 100%; text-align: center;">
+<div style="display: flex; justify-content: center; position: relative;">
+                {{{fragment-banner}}}
+            </div>
+<p style="text-align: cekter; font-style: italic; margin-top: 10px; max-width: 900px; margin-left: auto; margin-right: auto;">我们在最多 512 块 GPU 上运行了 4,000 多次扩展实验，测量了吞吐（标记大小）与 GPU 利用率（标记颜色）。注意，本可视化中的两者都按模型规模做了归一化。</p>
+</div>
+</d-title>
+<div class="order-button-container">
+<button class="order-button" onclick="window.open('https://www.lulu.com/shop/nouamane-tazi-and-ferdinand-mom-and-haojun-zhao-and-phuc-nguyen/the-ultra-scale-playbook/paperback/product-45yk9dj.html?page=1&amp;pageSize=4', '_blank')" style="margin: 0 8px;">购买实体书</button>
+<button class="order-button" onclick="window.open('https://huggingface.co/nanotron', '_blank')" style="margin: 0 8px;">获取 PDF</button>
+</div>
+<d-byline></d-byline>
+<d-article>
+<d-contents>
+</d-contents>
+<p>          数千块 GPU 和谐地嗡鸣。这正是训练当今最强 AI 模型所需要的东西——一场算力的交响乐，而直到不久前，它还是精英研究实验室的专属领域。开源改变了这一局面，但并未完全改变。是的，你可以下载最新的 <a href="https://huggingface.co/meta-llama">Llama</a> 或 <a href="https://huggingface.co/deepseek-ai">DeepSeek</a> 模型。是的，你可以阅读它们的<a href="https://ai.meta.com/research/publications/the-llama-3-herd-of-models/">技术</a>报告和<a href="https://github.com/deepseek-ai/DeepSeek-R1/blob/main/DeepSeek_R1.pdf">实验</a>报告。但最具挑战性的部分——训练代码、协调 GPU 来训练这些庞然大物所需的知识与技术——仍然笼罩在复杂性之中，散落在一系列彼此割裂的论文和往往私有的代码库里。
+          </p>
+<aside>阅读时间：2-4 天。<br/>为获得最佳阅读体验，我们建议不要使用手机。</aside>
+<p>            这本开源书正是为了改变这一点。从基础讲起，我们将带你走完把大语言模型（LLM）的训练从一块 GPU 扩展到数十块、数百块乃至数千块 GPU 所需的知识，并用实际代码示例和可复现的基准测试来阐明理论。
+        </p>
+<p>随着用于训练这些模型的集群规模不断增长，人们发明了多种技术——数据并行、张量并行、流水线并行和上下文并行，以及 ZeRO 和内核融合——以确保 GPU 始终处于高利用率状态。这显著缩短了训练时间，让这些昂贵的硬件得到最高效的利用。这些分布式训练技术不仅对构建初始模型很重要，对于在专门数据上微调大模型也已变得不可或缺，而后者往往能产生最好的结果。在本书中，我们将循序渐进地过一遍所有这些技术——从最简单的到最精细的——同时保持一条单一的叙事主线，帮助你理解每种方法是怎么来的。</p>
+<aside>如果你有问题或看法，请在<a href="https://huggingface.co/spaces/nanotron/ultrascale-playbook/discussions?status=open&amp;type=discussion">社区标签页</a>发起讨论！</aside>
+<p>我们假设你对当前的 LLM 架构有基本了解，大致熟悉深度学习模型是如何训练的，但可能对分布式训练完全是新手。如有需要，你可以在 <a href="https://www.deeplearning.ai">DeepLearning.ai</a> 的优质课程或 <a href="https://pytorch.org/tutorials/beginner/basics/intro.html">PyTorch 教程</a>中找到模型训练基础知识的相关内容。本书可以看作三部曲的第二部，承接我们此前那篇关于预训练数据处理的博客文章（即“<a href="https://huggingface.co/spaces/HuggingFaceFW/blogpost-fineweb-v1">FineWeb 博客文章</a>”）。读完这两部，你几乎就掌握了充分理解当今高性能 LLM 是如何构建所需的全部核心知识，只差关于数据混合和架构选择的秘方就能补全这道菜谱（敬请期待第三部……）。</p>
+<aside>我们极其感谢整个 <a href="https://distill.pub/">distill.pub</a> 团队创建了我们撰写这篇博客文章所依据的模板。</aside>
+<p>本书建立在以下<strong>三大通用基础</strong>之上：</p>
+<p><strong>1. 理论与概念的快速入门：</strong>在深入代码和实验之前，我们希望你在较高层面上理解每种方法的工作原理，以及它的优势和局限。例如，你将了解语言模型的哪些部分会吃掉你的显存，以及在训练过程中的什么时候发生。你还将了解我们如何通过并行化模型来绕开显存限制，以及如何通过扩展 GPU 规模来提高吞吐。最终，你将理解下面这个用于计算 Transformer 模型显存分解的小组件是如何工作的：</p>
+<aside>请注意，这个小组件里仍然缺少流水线并行。就当作留给读者的练习吧。</aside>
+<div class="large-image-background-transparent">
+<div id="graph-container">
+<div id="graph-all">
+<div class="figure-legend">Memory usage breakdown</div>
+<div id="graph"></div>
+</div>
+<div id="controls">
+<div class="cell column-1">
+<label for="a">Attention Heads (a):</label>
+<div style="display: grid; grid-template-columns: 1fr 1fr; align-items: center;">
+<input id="a" max="128" min="1" name="a" type="range" value="8"/>
+<input id="a_input" max="128" min="1" type="number" value="8"/>
+</div>
+</div>
+<div class="cell column-2">
+<label for="mixed">Mixed Precision:</label>
+<div style="display: grid; grid-template-columns: 1fr 1fr; align-items: center;">
+<input checked="" id="mixed" name="mixed" type="checkbox"/>
+<span></span> <!-- Empty span to maintain grid alignment -->
+</div>
+</div>
+<div class="cell column-1">
+<label for="b">Micro-Batch Size (b):</label>
+<div style="display: grid; grid-template-columns: 1fr 1fr; align-items: center;">
+<input id="b" max="53248" min="1" name="b" type="range" value="32"/>
+<input id="b_input" max="53248" min="1" type="number" value="32"/>
+</div>
+</div>
+<div class="cell column-2">
+<label for="seq_parallel">Sequence Parallelism:</label>
+<div style="display: grid; grid-template-columns: 1fr 1fr; align-items: center;">
+<input id="seq_parallel" name="seq_parallel" type="checkbox"/>
+<span></span> <!-- Empty span to maintain grid alignment -->
+</div>
+</div>
+<div class="cell column-1">
+<label for="h">Hidden Dimension (h):</label>
+<div style="display: grid; grid-template-columns: 1fr 1fr; align-items: center;">
+<input id="h" max="16384" min="1" name="h" type="range" value="512"/>
+<input id="h_input" max="16384" min="128" type="number" value="512"/>
+</div>
+</div>
+<div class="cell column-2">
+<label for="recomputation">Recomputation:</label>
+<select id="recomputation" name="recomputation">
+<option value="none">None</option>
+<option value="selective">Selective</option>
+<option value="full">Full</option>
+</select>
+<span></span> <!-- Empty span to maintain grid alignment -->
+</div>
+<div class="cell column-1">
+<label for="h_ff">Feedforward Dimension (h_ff):</label>
+<div style="display: grid; grid-template-columns: 1fr 1fr; align-items: center;">
+<input id="h_ff" max="65536" min="1" name="h_ff" type="range" value="2048"/>
+<input id="h_ff_input" max="65536" min="512" type="number" value="2048"/>
+</div>
+</div>
+<div class="cell column-2">
+<label for="zero">ZeRO:</label>
+<select id="zero" name="zero">
+<option value="0">0</option>
+<option value="1">1</option>
+<option value="2">2</option>
+<option value="3">3</option>
+</select>
+<span></span> <!-- Empty span to maintain grid alignment -->
+</div>
+<div class="cell column-1">
+<label for="L">Number of Layers (L):</label>
+<div style="display: grid; grid-template-columns: 1fr 1fr; align-items: center;">
+<input id="L" max="126" min="1" name="L" type="range" value="12"/>
+<input id="L_input" max="126" min="1" type="number" value="12"/>
+</div>
+</div>
+<div class="cell column-2">
+<label for="ff_activation">FF Activation:</label>
+<select id="ff_activation" name="ff_activation">
+<option value="relu">ReLU</option>
+<option value="gelu">GELU</option>
+<option value="swiglu">SwiGLU</option>
+</select>
+<span></span> <!-- Empty span to maintain grid alignment -->
+</div>
+<div class="cell column-1">
+<label for="s">Sequence Length (s):</label>
+<div style="display: grid; grid-template-columns: 1fr 1fr; align-items: center;">
+<input id="s" max="128000" min="1" name="s" type="range" value="128"/>
+<input id="s_input" max="128000" min="64" type="number" value="128"/>
+</div>
+</div>
+<div class="cell column-2">
+<label for="v">Vocabulary Size (v):</label>
+<div style="display: grid; grid-template-columns: 1fr 1fr; align-items: center;">
+<input id="v" max="100000" min="1000" name="v" type="range" value="30522"/>
+<input id="v_input" max="100000" min="1000" type="number" value="30522"/>
+</div>
+</div>
+<div class="cell column-1">
+<label for="tp">Tensor Parallelism (t):</label>
+<div style="display: grid; grid-template-columns: 1fr 1fr; align-items: center;">
+<input id="tp" max="16" min="1" name="tp" type="range" value="8"/>
+<input id="tp_input" max="16" min="1" type="number" value="8"/>
+</div>
+</div>
+<div class="cell column-2">
+<label for="k">Optimizer Parameters (k):</label>
+<div style="display: grid; grid-template-columns: 1fr 1fr; align-items: center;">
+<input id="k" max="16" min="1" name="k" type="range" value="8"/>
+<input id="k_input" max="16" min="1" type="number" value="8"/>
+</div>
+</div>
+<div class="cell column-1">
+<label for="dp">Data Parallelism (d):</label>
+<div style="display: grid; grid-template-columns: 1fr 1fr; align-items: center;">
+<input id="dp" max="256" min="1" name="dp" type="range" value="1"/>
+<input id="dp_input" max="256" min="1" type="number" value="1"/>
+</div>
+</div>
+<div class="cell column-2">
+<label for="presets">Presets:</label>
+<select id="presets" name="presets">
+<option value="Llama 3 Tiny">Llama 3 Tiny</option>
+<option value="Llama 3 8B">Llama 3 8B</option>
+<option value="Llama 3 70B">Llama 3 70B</option>
+<option value="Llama 3 405B">Llama 3 405B</option>
+</select>
+<span></span> <!-- Empty span to maintain grid alignment -->
+</div>
+</div>
+</div>
+</div>
+<p>（如果你完全不知道这个小组件里在发生什么，别担心。这正是我们在这里的原因！）</p>
+<p>虽然这个小组件给出的是理论分解，我们还做了<a href="https://huggingface.co/spaces/nanotron/predict_memory">下面这个工具</a>，可用于预测一次训练运行期间的显存使用量：</p>
+<a href="https://huggingface.co/spaces/nanotron/predict_memory">
+<img alt="Predict Memory Tool" src="/assets/images/predict_memory_tool.png"/>
+</a>
+<p><strong>2. 清晰的代码实现：</strong>理论是一回事，但我们在实现某样东西时才会发现各种边界情况和重要细节。因此，我们在可能的地方都给出了实现参考。根据具体情况，我们会使用两个代码参考：</p>
+<ul>
+<li>
+<p> <a href="https://github.com/huggingface/picotron">Picotron</a> 仓库是为教学而构建的，因此它通常用单个自包含的简短文件来实现各个概念。
+            </p>
+</li>
+<li>
+<p>              另一方面，要查看生产级代码，我们会参考 <a href="https://github.com/huggingface/nanotron">Nanotron</a> 的实现。这是一个在 Hugging Face 使用的生产训练代码库。
+            </p>
+</li>
+</ul>
+<aside>3. 如果你想看关于分布式训练的视频，而不是读博客或 Picotron 代码，可以看看 <a href="https://www.youtube.com/watch?v=u2VSwDDpaBM&amp;list=PL-_armZiJvAnhcRr6yTJ0__f3Oi-LLi9S">Ferdinand 的 YouTube 频道</a>。</aside>
+<!-- <p><img alt="Picotron implements each key concept in a self-contained way, such that the method can be studied separately and in isolation." src="assets/images/placeholder.png" /></p> -->
+<p><strong>3. 真实的训练效率基准测试：</strong>如何<em>真正</em>扩展你的 LLM 训练，取决于你的基础设施，例如所用芯片的类型、互连等，因此我们无法给出单一统一的配方。我们能给你的是一个对多种配置做基准测试的方法。这就是我们在自己的集群上所做的。我们运行了超过 4,100 次分布式实验（算上测试运行则超过 16k 次），最多用到 512 块 GPU，扫描了许多可能的分布式训练布局和模型规模。</p>
+<!-- <iframe id="plotFrame" src="assets/data/benchmarks/benchmarks_interactive.html" scrolling="no" frameborder="0" height="840" width="720"></iframe> -->
+<div id="fragment-benchmarks_interactive"></div>
+<p>如你所见，要覆盖的内容很多。在进入分布式训练的深水区之前，我们先快速、高层地看一下本书将要讨论的挑战。</p>
+<a id="high-level_overview"></a><h2 id="high-level_overview">高层概览</h2>
+<p> 本书将要讨论的所有技术，都在解决以下三个关键挑战中的一个或几个，而我们会反复碰到它们：</p>
+<ol>
+<li><strong>显存使用：</strong>这是一个硬性限制——如果一个训练步放不进显存，训练就无法继续。</li>
+<li><strong>计算效率：</strong>我们希望硬件把大部分时间花在计算上，因此需要减少花在数据传输或等待其他 GPU 执行工作上的时间。</li>
+<li><strong>通信开销：</strong>我们希望把通信开销降到最低，因为它会让 GPU 空转。为此，我们将尽量充分利用节点内（快）和节点间（较慢）的带宽，并尽可能让通信与计算重叠。</li>
+</ol>
+<p>在很多地方我们会看到，可以用三者（计算、通信、显存）中的一项去换另一项（例如通过重计算或张量并行）。找到合适的平衡是扩展训练的关键。</p>
+<p>          由于本书涵盖的内容很多，我们做了一份<a href="assets/images/ultra-cheatsheet.svg">速查表</a>，帮助你导航并掌握总体要点。在这片风浪中航行时，请把它放在手边！
+        </p>
+<div class="center"><a href="assets/images/ultra-cheatsheet.svg"><img alt="Cheatsheet" src="assets/images/ultra-cheatsheet.svg"/></a></div>
+<!-- RH: Would it be possible for me to edit the cheatsheet? There's some cleanup I'd like to do there. -->
+<!-- <p>This book is very extensive so we decide to start with a very general overview of how you can think about distributed training. At a high level, the key challenge in scaling LLM training is to make a training step (forward/backward/optimizer step) with a large batch size the fastest possible.</p>
+        <p>When scaling up models and input batches, we quickly end up in situations where either our target batch size won't fit in memory, or/and the model itself is too large to fit in a single GPU's memory.</p>
+        <p>To solve this scaling issue we’ll need to carefully evaluate different parallelization strategies and find the optimal balance between three main factors:</p>
+        <ol>
+        <li><strong>Memory Usage</strong><ul>
+        <li>Hard limitation - if a training step doesn't fit in memory, training cannot proceed</li>
+        <li>Sometimes we can increase compute (e.g. recomputation) or increase communication (e.g. ZeRO) to reduce memory usage</li>
+        </ul>
+        </li>
+        <li><strong>Compute Efficiency</strong><ul>
+        <li>Memory transfer can also decrease compute efficiency.</li>
+        <li>We want our hardware to spend most time computing, so we need to reduce time spent on data transfers or unoptimized kernels.</li>
+        <li>GPUs need sufficient workload (large enough matrices/batch sizes) to maintain high utilization (compute-bound) otherwise they become memory-bound (limited by memory bandwidth).</li>
+        </ul>
+        </li>
+        <li><strong>Communication overhead</strong><ul>
+        <li>Two main types. For GPUs: intra-node (NVLink TODO: bandwidth) and inter-node (network TODO: bandwidth)</li>
+        <li>Two main attributes: base latency and peak bandwidth. Base latency is a constant overhead that makes us want to do the least number of comms possible, and peak bandwidth controls the how fast we can move data between gpus</li>
+        <li>We prioritize using the fastest communication channels (like NVLink) for operations that occur frequently and/or block computation (e.g. tensor parallelism)</li>
+        <li>We want to minimize communication overhead as it keeps GPUs idle, so we try to overlap communication with compute as much as possible</li>
+        </ul>
+        </li>
+        </ol>
+        <p>But let’s not get too much ahead of our self and scale progressively. To guide you along the journey and as a practical reference we summarized the key concepts in a cheatsheet:</p>
+        <p>[TODO: ADD CHEATSHEET]</p> -->
+<!-- <p>Time to get started by quickly revisiting the basic training steps of an LLM!</p> -->
+<a id="first_steps:_training_on_one_gpu"></a><h2 id="first_steps:_training_on_one_gpu">第一步：在单块 GPU 上训练</h2>
+<!-- RH: Should these audio-container divs be commented out for the book version, or OK to leave them in? -->
+<div class="audio-container">
+<audio controls="">
+<source src="https://nanotron-ultrascale-playbook.static.hf.space/assets/audio/Single GPU Model Training_ Memory, Batch Size, and Optimization.wav" type="audio/wav"/>
+            Your browser does not support the audio element.
+          </audio>
+<div class="figure-legend">
+<p>如果你想为阅读体验增添一点播客的感觉，不妨在阅读时收听 NotebookLM 主持人讨论本书前几节的内容。</p>
+</div>
+</div>
+<p>在开始扩展到多块 GPU 之前，我们先快速回顾一下模型训练的最基础知识。当模型在单块 GPU 上训练时，训练通常包括三个步骤：</p>
+<ol>
+<li>一次前向传播，把输入通过模型以得到其输出</li>
+<li>一次反向传播，用于计算梯度</li>
+<li>一次优化步骤，用梯度更新参数</li>
+</ol>
+<aside>正如我们稍后将看到的，这些步骤可能会被重复或交织，但现在我们先从简单的开始。</aside>
+<p>它大体上是这样的：</p>
+<div class="svg-container" id="svg-first_steps_simple_training"> </div>
+<div class="info" id="svg-first_steps_simple_training-info">Hover over the network elements to see their details.</div>
+<script src="assets/images/first_steps_simple_training.js"></script>
+<p>在这张图中，顶行的方框可以看作是模型内部的各个连续层（最后一行同理）。粉色方框是每一层对应的梯度，在反向传播过程中计算得到。</p>
+<p><strong><em>批大小</em></strong>（<d-math>bs</d-math>）是模型训练的重要超参数之一；它同时影响模型收敛和吞吐。</p>
+<p>在训练早期，较小的批大小有助于快速穿越训练空间、抵达更优的学习点。然而随着模型训练继续推进，小批大小会使梯度持续带有噪声，模型可能无法收敛到最优的最终性能。另一个极端是，大批大小虽然能给出非常准确的梯度估计，但往往对每个训练 token 的利用更不充分，导致收敛更慢，并可能浪费算力资源。关于这一话题的早期讨论，可以参见 OpenAI 关于大批大小训练的论文<d-cite bibtex-key="mccandlish2018largebatchtraining"></d-cite>，或 MiniMax-01 <a href="https://filecdn.minimax.chat/_Arxiv_MiniMax_01_Report.pdf">技术报告</a>的第 4.2 节。</p>
+<aside>例如，在 DeepSeek-V3/R1 的训练中<d-cite bibtex-key="deepseekai2024deepseekv3technicalreport"></d-cite>，前 469B token 的训练里批大小从 3,072 条输入序列逐步增加到 15,360 条，随后在剩余的训练中保持为 15,360 条输入样本。</aside>
+<p>批大小还会影响在给定文本数据集上训练所需的时间：批大小越小，在相同数量的样本上训练就需要更多的优化器步数。优化器步数代价高昂（以计算时间计），因此与使用较大的批大小相比，训练总时长会增加。话虽如此，需要注意批大小通常可以在最优值附近相当大的范围内调整，而不会对模型性能造成重大影响——也就是说，在最优批大小附近，最终模型性能对具体批大小取值的敏感度通常相当低。</p>
+<p>在大语言模型预训练社区，批大小通常以 token 数而非样本数来报告（<d-math>bst</d-math> = 以 token 计的批大小）。这使得训练数据通常与训练期间使用的具体输入序列长度无关。</p>
+<p>最简单的情形是单机训练，此时 <d-math>bs</d-math>（以样本计）和 <d-math>bst</d-math> 可以由模型的输入序列长度（<d-math>seq</d-math>）计算得到：</p>
+<d-math block="">
+        bst=bs *seq
+        </d-math>
+<p>从这里开始，我们给出的是以样本数表示的批大小公式，但你随时可以将其乘以序列长度，得到以 token 为单位的对应值。</p>
+<p>对于近期的大语言模型训练，比较理想的取值通常在每批 400 万到 6000 万 token 的量级。多年来，批大小和训练语料规模一直在稳步增长：Llama 1 以约 4M token 的批大小训练了 1.4 万亿 token，而 DeepSeek 以约 60M token 的批大小训练了 14 万亿 token。</p>
+<p>当把模型训练扩展到这些大批大小时，我们会遇到第一个挑战：<strong><em>显存不足（OOM）问题</em></strong>。当 GPU 没有足够的显存容纳目标批大小的完整一批数据时，我们该怎么办？</p>
+<p>我们先来探究最初是什么导致了 OOM 问题。这有助于我们对训练模型所需的显存需求形成一些有用的直觉。</p>
+<a id="memory_usage_in_transformers"></a><h3 id="memory_usage_in_transformers">Transformer 中的显存使用</h3>
+<p>训练神经网络模型时，我们会在显存中存储若干项内容：</p>
+<ul>
+<li>模型权重</li>
+<li>模型梯度</li>
+<li>优化器状态</li>
+<li>计算梯度所需的激活</li>
+</ul>
+<div class="note-box">
+<p class="note-box-title">📝 Note</p>
+<div class="note-box-content">
+<p>
+                You might think that you could compute the memory requirements for a model exactly, but there are a few additional memory occupants that make it hard to be precise:
+        <ul>
+<li>CUDA 内核通常需要 1-2 GB 显存，你可以运行 <code>import torch; torch.ones((1, 1)).to("cuda")</code>，然后用 <code>nvidia-smi</code> 查看显存，即可快速验证这一点。</li>
+<li>一部分显存用于缓冲区和中间结果，还有一部分显存会因碎片化而无法使用。</li>
+</ul>
+        We’ll neglect these last two contributors, as they are typically small and constant factors.
+            </p></div>
+</div>
+<p>这些项以张量形式存储，而张量具有不同的形状和精度。<em>形状</em>由批大小、序列长度、模型隐藏维度、注意力头、词表大小以及可能的模型分片等超参数决定，我们后面会看到。<em>精度</em>指 FP32、BF16 或 FP8 等格式，分别需要 4、2、1 字节来存储张量中的每个数值。我们将在<a href="#mixed_precision_training" target="_self">"混合精度训练"</a>一节中完整讨论不同精度及其权衡；现在只需记住，这些格式的显存需求各不相同，这会影响我们需要存储的各项内容的显存占用。</p>
+<p>那么，如何根据这些变量快速确定显存占用呢？一种简单的方法是经验性地直接测量。</p>
+<a id="profiling_the_memory_usage"></a><h4 id="profiling_the_memory_usage">对显存占用进行性能分析</h4>
+<p>借助 PyTorch 性能分析器，我们可以了解整个训练过程中显存是如何分配的。可以看到，显存利用率并非静态不变，而是在训练过程中以及单个训练步内大幅波动：</p>
+<aside>关于如何对你的模型进行性能分析，请参阅<a class="" href="#a1%3A_distributed_training_profiling" target="_self">"A1：分布式训练性能分析"</a>。</aside>
+<!-- RH: In this figure, should the bottom 4 items in the legend be plural (Gradients, Activations, etc.) to match the figures below? -->
+<!-- <div class="svg-container l-body-outset" id="svg-first_steps_memory_profile"> </div>
+        <div class="info" id="svg-first_steps_memory_profile-info">Hover over the elements to see their details.</div>
+        <script src="assets/images/first_steps_memory_profile.js"></script>
+ -->
+<!-- {{!-- <iframe id="plotFrame" src="assets/data/benchmarks/memory-profile.html" height="520" width="1000" scrolling="no" frameborder="0"></iframe> --}} -->
+<div id="fragment-memory-profile"></div>
+<p>显然，第一步与后续步骤看起来差别很大，但在讨论这一点之前，我们先看看一个训练步的总体结构。首先，在前向传播过程中激活迅速增加；随后在反向传播过程中梯度不断累积，并且随着反向传播的推进，用于计算梯度的已存储激活被逐步清除。最后我们执行优化，此时需要用到所有梯度，然后更新优化器状态，之后才开始下一次前向传播。</p>
+<p>如前所述，第一步看起来不同：激活迅速增加，然后在一段时间内保持平稳。为什么？在第一步中，PyTorch 缓存分配器做了大量准备工作，预先安排好显存分配，使后续步骤不必再搜索空闲显存块，从而加速这些步骤（见 <a href="https://zdevito.github.io/2022/08/04/cuda-caching-allocator.html">Zach 的博客</a>）。第一步之后我们还会看到优化器状态出现，它通常会使后续训练步的显存占用增加。</p>
+<aside>你是否注意到，有时训练在第一步成功，但在随后的训练步中却出现 OOM？这可以用第一步之后优化器状态的建立来解释。</aside>
+<p>现在我们对显存有了初步认识，接下来看看：扩展训练规模，往往就是在把这些不同项（激活、参数、梯度、优化器状态）的显存需求控制在 GPU 显存约束之内的同时，最大化计算效率。</p>
+<a id="memory_for_weights/grads/optimizer_states"></a><h4 id="memory_for_weights/grads/optimizer_states">权重/梯度/优化器状态的显存</h4>
+<p>从列表中的前三项开始：模型权重、梯度和优化器状态。它们所需的显存其实很容易估算。</p>
+<p>对于一个简单的 Transformer 大语言模型，参数数量由<a href="https://michaelwornow.net/2024/01/18/counting-params-in-transformer">以下公式</a>给出：</p>
+<d-math block="">
+            N = h * v + L * (12 * h^2 + 13 * h) + 2*h
+        </d-math>
+<aside>我们未计入位置嵌入的数量，因为这里不使用固定的位置嵌入。</aside>
+<p>在该公式中，<d-math>h</d-math> 是隐藏维度，<d-math>v</d-math> 是词表大小，<d-math>L</d-math> 是模型中的层数。注意，从公式可以看出，在隐藏维度较大时起主导作用的是 <d-math>h^2</d-math> 项，因为它是唯一随参数规模呈二次增长的项。</p>
+<p>参数和梯度的显存需求，只需用参数数量乘以每个参数的字节数即可确定。在经典的全精度（FP32）训练中，参数和梯度各需要 4 字节，而优化器若使用 Adam，则需要存储动量和方差，每个参数再增加 8 字节（各 4 字节）。总结如下：</p>
+<d-math block="">
+            \begin{aligned}
+            &amp; m_{params} = 4 * N \\
+            &amp; m_{grad} = 4 * N \\
+            &amp; m_{opt} = (4+4) * N
+            \end{aligned}
+        </d-math>
+<p>现在，我们来看看使用更低精度时情况会如何变化。出于稳定性考虑（参见本书后文<a href="#mixed_precision_training" target="_self">混合精度训练</a>一节），我们通常不会采用完全的低精度训练，而是使用一种高低精度混合的做法，称为“混合精度”<d-cite bibtex-key="micikevicius2018mixedprecisiontraining"></d-cite>。如今混合精度训练的默认做法是：大多数计算普遍使用 BF16——每个参数和梯度占 2 字节——同时以 FP32 额外保存一份模型权重和梯度，合计每个参数 12 字节。除参数和梯度之外，我们还需要存储优化器状态；对 Adam 优化器而言，这需要动量和方差，它们通常为数值稳定性以 FP32 存储，各占 4 字节。</p>
+<aside>稍后介绍 ZeRO 方法时，你会看到更多细节。</aside>
+<p>总结如下：</p>
+<d-math block="">
+            \begin{aligned}
+                &amp; m_{params} = 2 * N \\ 
+                &amp; m_{grad} = 2 * N \\ 
+                &amp; m_{params\_fp32} = 4 * N  \\ 
+                &amp; m_{opt} = (4+4) * N
+            \end{aligned}
+        </d-math>
+<div class="note-box">
+<p class="note-box-title">📝 Note</p>
+<div class="note-box-content">
+<p>有些库以 FP32 存储梯度，这会额外占用 <d-math>m_{params\_fp32} = 4 * N</d-math> 的显存。例如 Nanotron 就是这样做的，因为 BF16 对较小的数值有精度损失，而我们始终把稳定性放在第一位。更多信息参见<a href="https://github.com/microsoft/DeepSpeed/issues/1773">这个 DeepSpeed issue</a>。</p>
+</div>
+</div>
+<div class="note-box">
+<p class="note-box-title">📝 Note</p>
+<div class="note-box-content">
+<p>参数的 FP32 副本（<d-math>m_{params\_fp32}</d-math>）在文献和代码库中有时被称为“主权重”。</p>
+</div>
+</div>
+<p>有意思的是，混合精度训练本身并不节省显存；它只是把显存在这三个组成部分之间以不同方式分配，而且如果我们以 FP32 累积梯度，相比全精度训练反而还要多出 4 字节。但它仍然有优势：用半精度计算前向/反向传播 (1) 让我们能在 GPU 上使用经过优化的低精度算子，速度更快；(2) 降低了前向传播期间的激活显存需求——正如我们在上图中看到的，这部分占显存使用的很大比重。</p>
+<p>我们先大致了解一个模型需要多少显存（全精度与混合精度给出的总体数值相同）：</p>
+<table>
+<thead>
+<tr>
+<th><strong>模型参数</strong></th>
+<th><strong>FP32 或 BF16，不含 FP32 梯度累积</strong></th>
+<th><strong>BF16，含 FP32 梯度累积</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1B</td>
+<td>16 GB</td>
+<td>20 GB</td>
+</tr>
+<tr>
+<td>7B</td>
+<td>112 GB</td>
+<td>140 GB</td>
+</tr>
+<tr>
+<td>70B</td>
+<td>1120 GB</td>
+<td>1400 GB</td>
+</tr>
+<tr>
+<td>405B</td>
+<td>6480 GB</td>
+<td>8100 GB</td>
+</tr>
+</tbody>
+</table>
+<aside><p>使用 FP8 训练替代 BF16 可以进一步降低显存使用，但稳定性更差。这是一个非常活跃的研究课题（参见<a href="https://x.com/xariusrke/status/1826669126955278401">这条推文</a>），我们会在后文更详细地讨论。</p></aside>
+<p>可以看到，一旦模型达到 <strong>7B</strong>（！），权重、梯度和优化器状态所需的显存就已经开始显著累积，并超过典型 GPU 的显存容量（例如 H100 GPU 的 80 GB）。</p>
+<p>但眼下，我们先只考虑能装进单块 GPU 的模型，来看看显存预算中的最后一个大项：激活。</p>
+<a id="memory_for_activations"></a><h4 id="memory_for_activations">激活的显存</h4>
+<p>激活的显存需求比权重、梯度和优化器状态更难计算一些，部分原因是它取决于模型的输入。如果你不清楚我们为什么要在反向传播中存储激活，<a href="https://www.determined.ai/blog/act-mem-2">这篇博客文章</a>提供了一个很好的快速回顾。在仔细考察反向传播的计算方式之后，我们可以估算混合精度下激活所需的总显存，并得到如下公式：</p>
+<d-math block="">
+            m_{act} =  L \cdot seq \cdot bs \cdot h \cdot (34 + \frac{5 \cdot n_{heads} \cdot seq}{h})
+</d-math>
+<p>其中，<d-math>L</d-math> 是层数，<d-math>seq</d-math> 是序列长度，<d-math>bs</d-math> 是批大小（以样本计），<d-math>h</d-math> 是模型的隐藏维度，<d-math>n_{heads}</d-math> 是注意力头的数量。</p>
+<p>关于这些数值的精确推导，可以参考 NVIDIA 那篇关于重计算的原始论文 <d-cite bibtex-key="korthikanti2022recomputation"></d-cite>——它本质上要求你对 Transformer 层中每个操作之间的所有中间激活的大小做一遍账目核算。</p>
+<p>这里有一个有趣的观察：对给定模型而言，显存使用并非静态不变，而是随批大小线性增长、随序列长度平方增长。这意味着激活显存正是当我们增大批大小或用更长序列训练时会急剧膨胀的那一部分。我们可以用这个公式考察不同序列长度下显存使用的变化，例如对 Llama 系列模型（<code>bs=1</code>）：</p>
+<div class="l-body-outset" id="fragment-memusage_activations"></div>
+<!-- <script>
+            window.addEventListener('load', function() {
+                const frame = document.getElementById('plotFrame3');
+                frame.style.height = frame.contentWindow.document.documentElement.scrollHeight + 'px';
+                frame.style.width = frame.contentWindow.document.documentElement.scrollWidth + 'px';
+            });
+        </script> -->
+<p>这些图讲述了一个引人注目的事实：对短序列（或小批大小）而言，激活的显存占用几乎可以忽略，但从 2-4k token 左右开始，它们就开始占据可观的显存；而参数、梯度和优化器状态（我们后文会讨论）的占用大致与序列长度和批大小无关。</p>
+<p>当输入 token 数量很大时（即大批大小/长序列），激活成为迄今最大的显存负担。</p>
+<p>有没有办法驯服这场“激活爆炸”？问得好，读者！</p>
+<p>现在该介绍我们的第一项技术了：<strong><em>激活重计算</em></strong>，它将帮助我们给激活显存占用封顶——这是当今大模型训练工具箱中必不可少的工具。</p>
+<a id="activation_recomputation"></a><h3 id="activation_recomputation">激活重计算</h3>
+<p>激活重计算——也称为<em>梯度检查点</em>或<em>重物化</em>——的基本思路是：在前向传播期间丢弃部分激活以节省显存，并额外花一些计算，在反向传播期间即时重新计算它们。不做重计算时，我们会存储两个可学习操作（例如前馈、LayerNorm 等）之间的每一个隐藏状态，以便在反向传播中用来计算梯度。使用重计算时，我们通常只在模型架构中的少数关键点存储激活，丢弃其余激活，并在反向传播期间从最近的已保存激活出发即时重新计算它们。基本上，我们重新执行前向传播的一个子部分，用显存换计算。它大致如下所示：</p>
+<div class="svg-container" id="svg-activation_recomputation"> </div>
+<div class="info" id="svg-activation_recomputation-info">Hover over the network elements to see their details.</div>
+<script src="assets/images/activation_recomputation.js"></script>
+<p>选择要存储的关键激活有几种策略：</p>
+<ul>
+<li><strong>完整（Full）：</strong>我们在 Transformer 模型每一层之间的过渡点对激活做检查点。这通常被称为“完整”策略，因为它需要对每一层做一次前向传播，实质上是在反向传播期间又加了一整次前向传播。该策略节省的显存最多，但计算代价也最高。它通常会让计算开销和时间增加 30-40%，非常可观。</li>
+<li><strong>选择性（Selective）：</strong>一般来说，我们可以做得比“完整”更好。重计算论文的作者<d-cite bibtex-key="korthikanti2022recomputation"></d-cite>做了详细分析，研究哪些激活增长得最大、同时按每秒浮点运算次数（FLOPS）衡量的重计算代价最低。结果表明注意力计算正属于这一类，因此我们通常可以丢弃它们，把检查点集中在昂贵的前馈计算上。对 GPT-3（175B）模型而言，这意味着<strong>以 2.7% 的计算开销换来 70% 的激活显存降低</strong>。</li>
+</ul>
+<aside>在 DeepSeek-V3 等较新的模型中采用了选择性检查点，通过存储尺寸更小的注意力激活——即所谓的“多头潜在注意力”（MLA）——来优化激活显存占用。</aside>
+<p>我们来看看重计算策略在实践中能把显存占用降低多少，以及选择性重计算如何在显存节省与重计算开销之间取得良好平衡：</p>
+<!-- RH: In this figure, change "optimizer" to "optimizer states" on the right. -->
+<div id="fragment-memory-recomputation"></div>
+<p>这里还能清楚看到另一个趋势：长序列下的激活对小模型的影响更大，因此重计算的效果也更加明显。</p>
+<div class="note-box">
+<p class="note-box-title">📝 Note</p>
+<div class="note-box-content">
+<p>                衡量训练设置对 GPU/TPU/加速器的使用效率时，通常需要把重计算计入总 FLOPs（浮点运算次数），再与 GPU/TPU/加速器的理论最大 FLOPS（每秒浮点运算次数）作比较。在计算某个训练步的 FLOPs 时把重计算计入，得到的值称为“硬件 FLOPs”，即加速器上实际执行的运算次数。用这个硬件 FLOPs 值除以训练步的时长（单位为秒），就得到实际达到的 FLOPS。再把实际达到的 FLOPS 除以加速器的最大 FLOPS，就得到<strong><em>硬件 FLOPs 利用率（hardware FLOPS utilization，HFU）</em></strong>。
+              </p><p>                然而，归根结底真正重要的是在给定数据集上训练模型所需的总时间。因此举个例子，在比较各种 GPU/TPU/加速器时，如果其中一款提供的显存足以跳过重计算、因而执行的总运算更少（更低的硬件 FLOPs），但训练仍然更快，那它就应该被加分，而不是被扣分。于是另一种做法是计算所谓的<strong><em>模型 FLOPs 利用率（model FLOPS utilization，MFU）</em></strong>：与 HFU 相反，它只计入模型前向传播和反向传播所需的运算，测量 FLOPs 时不包含重计算。因此这个值更多反映的是模型本身，而不是训练实现。
+              </p>
+</div>
+</div>
+<aside> </aside>
+<aside></aside>
+<p>                如今大多数训练框架都使用 FlashAttention（本书<a href="#flash_attention_1-3" target="_self">后文</a>会介绍），它把激活重计算原生地融入了自身的优化策略：在反向传播中重新计算注意力分数和矩阵，而不是把它们存下来。因此，大多数使用 FlashAttention 的人其实已经在用选择性重计算了。</p>
+<p>                如你现在所理解的，激活重计算会因重算而略微增加 FLOPs 数量，同时显著降低显存访问开销。</p>
+<p>                这种权衡在高速显存有限的硬件（如 GPU）上尤其有利，因为访问显存通常比执行计算更慢。尽管多做了运算，整体效果因此往往是计算更快，此外显存占用也低得多。</p>
+<p>                既然已经了解了重计算，我们就可以驯服上一节图表中看到的激活显存占用了！</p>
+<p>                不过，激活仍与批大小呈线性关系，而我们上面柱状图中的所有性能分析都使用 <code>bs=1</code>，所以当我们转向更大的批大小时，这可能再次成为问题。幸运的是，我们工具箱里还有第二件工具——<strong><em>梯度累积</em></strong>可以救场！</p>
+<a id="gradient_accumulation"></a><h3 id="gradient_accumulation">                梯度累积</h3>
+<p>                梯度累积是一种避免显存爆炸的非常直接的方法，其做法是把一个批拆分成若干微批。然后我们对每个微批依次执行前向传播和反向传播，计算梯度，并且正如名字所示，在执行优化之前把所有微批的梯度求和。在实践中，优化步不是基于梯度之和，而是基于梯度的平均值，这样结果就与梯度累积的步数无关。</p>
+<p>                我们把每次前向传播的批大小称为<em>微批大小</em>（<d-math>mbs</d-math>）。我们把每个优化器步之间的整体批大小称为<em>全局批大小</em>（<d-math>gbs</d-math>）。如果每执行八次前向/反向传播才做一次优化器步，那么全局批大小就是微批大小的八倍。</p>
+<p>                因此，我们现在所说的全局批大小，就对应此前为简单起见只称为批大小的那个量（现在我们让术语更精确，以避免歧义）。</p>
+<p>                使用梯度累积时，全局批大小可以这样计算：</p>
+<d-math block="">
+            bs = gbs = mbs \times grad\_acc 
+        </d-math>
+<p>                梯度累积让我们能够有效地把批大小增大到无穷（甚至更大！），而显存占用保持不变。梯度累积也可以与激活重计算配合使用，以进一步降低显存。</p>
+<p><img alt="image.png" src="/assets/images/gradaccumulation_diag.png"/></p>
+<aside>                使用梯度累积意味着我们需要保留用于累积梯度的缓冲区，且这些缓冲区在整个训练步期间持续存在；而不用梯度累积时，反向传播在计算梯度的同时会释放激活显存，这意味着峰值显存更低。</aside>
+<p>                梯度累积通过按顺序处理更小的微批，降低了随批大小线性增长的激活显存。由于同一时刻只需在显存中保留一个微批的激活，需要存储的激活和梯度随之减少，这有助于降低整体的激活显存占用。</p>
+<p>                不过一个缺点是，梯度累积每个优化步需要多次连续的前向/反向传播，从而增加了计算开销并拖慢训练。天下没有免费的午餐！</p>
+<p>                不过，如果你一直跟得很仔细，可能已经注意到：每个微批的前向/反向传播其实可以并行执行。各次前向和反向传播彼此独立，唯一的区别只是输入样本不同。看来是时候把训练扩展到不止一块 GPU 上了！</p>
+<p>                在此之前，我们先快速看看如何可视化计算与通信：简要介绍分布式训练工具箱中最有用的工具之一——<strong><em>性能分析器</em></strong>。这个工具对于理解和验证 GPU 之间的通信与计算如何发生、瓶颈在哪里，会极其有用。</p>
+<a id="profiling_gpu_compute_and_communication"></a><h4 id="profiling_gpu_compute_and_communication">                对 GPU 计算与通信进行性能分析</h4>
+<p>                PyTorch 的<a href="https://pytorch.org/tutorials/recipes/recipes/profiler_recipe.html">性能分析器</a>让我们能够追踪并可视化训练期间 CPU 和 GPU 上究竟发生了什么。它原生集成在 PyTorch 中。我们来看看怎么用：</p>
+<d-code block="" language="python">
+            with torch.profiler.profile(
+                activities=[
+                    torch.profiler.ProfilerActivity.CPU,
+                    torch.profiler.ProfilerActivity.CUDA,
+                ],
+                schedule=torch.profiler.schedule(wait=1, warmup=1, active=3),
+                on_trace_ready=torch.profiler.tensorboard_trace_handler('./log/profile'),
+                with_stack=True
+            ) as prof:
+                for step in range(steps):
+                    train_step() 
+                    prof.step()</d-code>
+<p>                这会生成一份追踪记录，我们可以在 TensorBoard 或 Chrome 的追踪查看器中将其可视化。追踪记录会显示：</p>
+<ul>
+<li>                在 GPU 上异步启动内核的 CPU 线程</li>
+<li>                并行处理计算与通信的多个 CUDA 流</li>
+<li>                内核执行时间与显存分配</li>
+</ul>
+<p><img alt="profile_trace_annotated.png" src="/assets/images/profile_trace_annotated.png"/></p>
+<div class="figure-legend"><p>                示例追踪记录：CPU 线程在 GPU 上异步启动内核，计算内核与通信在不同 CUDA 流之间并行进行</p></div>
+<p>                追踪记录有助于识别如下瓶颈：</p>
+<ul>
+<li>                本可重叠却串行执行的计算与通信</li>
+<li>                GPU 等待数据传输的空闲时间</li>
+<li>                CUDA 同步以及 CPU 与 GPU 之间的显存搬运</li>
+<li>                GPU 上的内核启动开销</li>
+</ul>
+<p>                理解这些模式对于优化分布式训练性能至关重要。例如，追踪记录会清楚地显示梯度同步是否与反向计算恰当重叠，这一点我们稍后会讨论。</p>
+<p>                现在我们换一台配有几块 GPU 的更大工作站，开始研究第一种扩展技术——<em><strong>数据并行</strong></em>；正如我们将看到的，它不过是梯度累积的并行版本。</p>
+<a id="data_parallelism"></a><h2 id="data_parallelism">                数据并行</h2>
+<div class="audio-container">
+<audio controls="">
+<source src="https://nanotron-ultrascale-playbook.static.hf.space/assets/audio/Data Parallelism and ZeRO_ Scaling Model Training.wav" type="audio/wav"/>
+                Your browser does not support the audio element.
+              </audio>
+<div class="figure-legend">
+<p>                为了让你的阅读体验多一点播客的感觉，你可以在阅读时顺便听听 NotebookLM 主持人讨论本书接下来的几节内容。</p>
+</div>
+</div>
+<p>                数据并行（DP）的思路是把模型复制到多块 GPU 上（我们把副本称为“模型实例”），并在每块 GPU 上并行地对不同的数据微批执行前向传播和反向传播——这就是<em>数据并行</em>这个名字的由来。你可能已经在简单的训练示例中见过数据并行，但本节会深入得多，所以即使你了解大致做法，也请继续读下去。</p>
+<p><img alt="image.png" src="/assets/images/dp_diagram.png"/></p>
+<aside>                如果你不熟悉广播、收集和全规约这类分布式通信模式，我们在<a class="" href="#a0%3A_parallel_programming_crash_course" target="_self">“A0：并行编程速成课”</a>中准备了一个简短的速成教程。</aside>
+<p>每块 GPU 使用不同的微批，意味着每块 GPU 上会得到不同的梯度，因此为了让不同 GPU 上的模型实例保持同步，我们会用一种称为“全规约”的操作对各模型实例的梯度求平均。该操作发生在反向传播期间、优化器步进之前。</p>
+<p>这涉及我们的第一个“分布式通信”原语——<em><strong>全规约</strong></em>，它负责 GPU 实例之间以及节点之间的同步与通信。</p>
+<!-- RH: In this figure, on the right, can "AllReduce Grads" be changed to "All-reduce grads"? -->
+<p><img alt="image.png" src="/assets/images/dp_overlap1.svg"/></p>
+<p>朴素的 DP 实现会直接等反向传播结束、拿到全部梯度，然后在所有 DP rank 上触发一次全规约来同步梯度。但这种先计算、后通信的串行步骤是<strong>绝对的大忌</strong>，因为我们不希望 GPU 在通信进行时像上图那样闲置。</p>
+<p>相反，我们应尽可能重叠通信与计算，让二者同时发生。</p>
+<p>下面来看三项优化，它们能让我们比最初那个朴素实现做得好得多。</p>
+<a id="first_optimization:_overlap_gradient_synchronization_with_backward_pass"></a><h4 id="first_optimization:_overlap_gradient_synchronization_with_backward_pass"><strong>第一项优化：</strong>将梯度同步与反向传播重叠</h4>
+<p>刚描述的朴素 DP 方法的主要缺点在于：反向传播（<em>计算</em>）之后，我们必须等待梯度同步（<em>通信</em>）完成才能更新参数。我们能把这次通信与计算重叠起来吗？答案是肯定的！</p>
+<p>如上图所示，某一层的梯度（粉色方框）可以在更靠前各层的梯度（其左侧的粉色方框）尚未算出之前就被收集并求和。例如，最后一层的反向传播一结束（最右侧的方框），这些梯度就可以被收集并求和，同时针对更靠前各层的反向计算仍在继续、向左推进。</p>
+<!-- RH: In this figure, on the right, can "AllReduce Grads" be changed to "All-reduce grads"? -->
+<p><img alt="image.png" src="/assets/images/dp_overlap2.svg"/></p>
+<p>在 PyTorch 中，可以通过给每个参数挂一个<em>全规约钩子函数</em>来实现。某个参数的梯度一就绪，就立刻触发一次全规约操作，而此时其他参数的梯度仍在计算中。该方法让大部分全规约操作与梯度计算重叠，从而提高效率。下面是一个挂载钩子的简单函数：</p>
+<d-code block="" language="python">
+            def register_backward_hook(self, hook):
+                """
+                Registers a backward hook for all parameters of the model that 
+                require gradients.
+                """
+                for p in self.module.parameters():
+                    if p.requires_grad is True:
+                        p.register_post_accumulate_grad_hook(hook)</d-code>
+<p>计算与通信重叠减少了整个模型等待梯度同步的时间。梯度同步可以（至少部分地）与同一训练步内的反向传播并行发生，从而显著加速数据并行。下面是带同步重叠的朴素 DP 完整实现：</p>
+<details style="background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; margin: 1em 0;">
+<summary style="padding: 12px; cursor: pointer; user-select: none; background: #f3f4f6; border-bottom: 1px solid #d0d7de;">                👉 Picotron 中带重叠的朴素 DP 实现（点击展开）
+            </summary>
+<div class="code-embed-container" style="margin: 0; border-radius: 0; overflow-x: scroll; width: max-content; min-width: 100%; font-size: 8px;"></div>
+<script src="https://emgithub.com/embed-v2.js?target=https%3A%2F%2Fgithub.com%2Fhuggingface%2Fpicotron%2Fblob%2F0035cce0e04afd6192763b11efe50010d8ad0f71%2Fpicotron%2Fdata_parallel%2Fdata_parallel.py%23L10-L60&amp;style=github&amp;type=code&amp;showBorder=off&amp;showLineNumbers=on&amp;showFileMeta=on&amp;showCopy=on&amp;showFullPath=on">
+</script>
+
+</details>
+<p>这是我们第一次遇到计算与通信重叠这一概念的示例，它是最大化扩展效率的关键技术，本书中我们会多次讨论。但我们还能进一步提升效率！</p>
+<a id="second_optimization:_bucketing_gradients"></a><h4 id="second_optimization:_bucketing_gradients"><strong>第二项优化：</strong>对梯度分桶</h4>
+<p>GPU 操作在大张量上执行时通常更高效，而不是让许多操作跑在更小的张量上。通信操作同样如此。因此，我们可以把梯度分到“桶”里，对同一个桶内的所有梯度只发起一次全规约，而不是为每个梯度分别执行独立的全规约。它大体如下所示：
+        </p>
+<!-- RH: In this figure, on the right, can "AllReduce Grads" be changed to "All-reduce grads"? -->
+<p><img alt="dp_overlap3.svg" src="/assets/images/dp_overlap3.svg"/></p>
+<p>可以把它想成发货前把物品装进箱子：寄几个大箱子比寄许多小箱子更高效。对每个桶执行一次全规约操作，我们就能显著降低通信开销并加快通信操作。</p>
+<p>下面是带分桶的代码实现：</p>
+<details style="background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; margin: 1em 0;">
+<summary style="padding: 12px; cursor: pointer; user-select: none; background: #f3f4f6; border-bottom: 1px solid #d0d7de;">                👉 Picotron 中的分桶 DP 实现（点击展开）
+            </summary>
+<div class="code-embed-container" style="margin: 0; border-radius: 0; overflow-x: scroll; width: max-content; min-width: 100%; font-size: 8px;"></div>
+<script src="https://emgithub.com/embed-v2.js?target=https%3A%2F%2Fgithub.com%2Fhuggingface%2Fpicotron%2Fblob%2F0035cce0e04afd6192763b11efe50010d8ad0f71%2Fpicotron%2Fdata_parallel%2Fdata_parallel.py%23L62-L171&amp;style=github&amp;type=code&amp;showBorder=on&amp;showLineNumbers=on&amp;showFileMeta=on&amp;showFullPath=on&amp;showCopy=on">
+</script>
+
+</details>
+<a id="third_optimization:_interplay_with_gradient_accumulation"></a><h4 id="third_optimization:_interplay_with_gradient_accumulation"><strong>第三项优化：</strong>与梯度累积的相互作用</h4>
+<p>最后，如我们所见，梯度累积的做法是在用 <code>optimizer.step()</code> 更新参数之前执行多次前向与反向传播。把梯度累积与数据并行结合时，我们需要谨慎决定何时同步梯度。</p>
+<p>在朴素版本中，累积期间的每次反向传播之后都会自动触发一次全规约。这并不是最优的，因为在最后一步之后只做一次规约也能得到相同效果，同时还能减少开销。</p>
+<p>在 PyTorch 中，常见的解决办法是在不需要规约的反向传播上加上 <a href="https://github.com/pytorch/pytorch/blob/5ea67778619c31b13644914deef709199052ee55/torch/nn/parallel/distributed.py#L1408-L1435"><code>model.no_sync()</code></a> 装饰器，它会禁用梯度同步。</p>
+<div class="note-box">
+<p class="note-box-title">📝 Note</p>
+<div class="note-box-content">
+<p>执行通信操作时，张量在内存中必须是连续的，以避免多余的内存拷贝。为达到最优效果，我们常会专门为通信预分配与激活或模型参数同样大小的连续缓冲区。这虽然加快了通信，但也在一定程度上推高了训练期间的显存峰值占用。</p>
+</div>
+</div>
+<p>现在来看看这对全局批大小意味着什么。</p>
+<a id="revisiting_global_batch_size"></a><h3 id="revisiting_global_batch_size">重新审视全局批大小</h3>
+<p>我们可以把新加入的数据并行与梯度累积参数补进批大小公式：</p>
+<d-math block="">
+            bs = gbs = mbs \times grad\_acc  \times dp
+        </d-math>
+<p>其中，<d-math>grad\_acc</d-math> 是梯度累积步数，<d-math>dp</d-math> 是用于数据并行的并行实例数。</p>
+<p>因此，在给定目标全局批大小的情况下，我们可以用数据并行进程来替换梯度累积步数，从而加快训练。</p>
+<p>实践中，人们倾向于尽可能让数据并行规模（<d-math>dp</d-math>）优先于梯度累积（<d-math>grad\_acc</d-math>）最大化，因为数据并行天生是并行的，而梯度累积本质上是串行的。当仅靠扩大数据并行不足以达到目标全局批大小、而可用 GPU 又已用完时，就在数据并行之上再叠加梯度累积。</p>
+<aside>关于数据并行，进一步阅读的好资料是 <a href="https://siboehm.com/articles/22/data-parallel-training">https://siboehm.com/articles/22/data-parallel-training</a>。
+        </aside>
+<p>能够把训练分布到不同样本上，为我们提供了第一个并行化维度，因此这被称为 1D 并行（我们后面会逐步再讲四个维度）。</p>
+<a id="our_journey_up_to_now"></a><h3 id="our_journey_up_to_now">我们目前的历程</h3>
+<p>我们快速总结一下如何搭建第一个 1D 并行训练，并给出一份最优数据并行配置的草案配方：</p>
+<ol>
+<li>我们首先确定以 token 计的最佳（全局）批大小，方法可以是查阅文献，也可以是跑实验测量模型收敛情况。</li>
+<li>接着选择训练用的序列长度，同样可以查阅文献或跑实验。总体而言，对于今天常用的评估基准，2-8k token 的效果稳定可靠（这里不深入训练配方，但团队通常会在训练末期提高序列长度，往数据里掺入一些更长上下文的样本，以达到今天更长的上下文规模）。</li>
+<li>现在我们知道批大小（<d-math>gbs</d-math>）了。我们可以通过不断增大单块 GPU 上的局部批大小，直到显存耗尽，从而找到最大局部批大小（<d-math>mbs</d-math>）。</li>
+<li>最后，我们确定目标 <d-math>dp</d-math> 可用的 GPU 数量。<d-math>gbs</d-math> 与 <d-math>dp</d-math> 的比值，给出了为达到期望 <d-math>gbs</d-math> 所需的其余梯度累积步数。</li>
+</ol>
+<aside>例如，DeepSeek 和 Llama 模型在主预训练阶段都以 4k token 的序列长度训练。<br/><br/>2-8k token 之所以在预训练中效果很好，是因为网上的长文档非常稀少。详细分析见 <a href="https://www.harmdevries.com/post/context-length/">Harm de Vries 的博客文章</a>。</aside>
+<p>如果梯度累积比例小于 1 ——也就是说，我们的 GPU 太多了/属于“GPU 富裕户”🤑（！）——我们可以选择不使用全部 GPU、探索更大的 <d-math>gbs</d-math>，或者测试更小的 <d-math>mbs</d-math> 能否加速训练。在后一种情况下，我们最终会把吞吐置于单个 GPU 的计算效率之上，使用比可行值更小的 <d-math>mbs</d-math> 来加速训练。</p>
+<p>现在看一个具体例子。假设我们要训练一个近期模型，其 <d-math>gbs</d-math> 为 4M token，序列长度为 4k。因此批大小为 1,024 个样本（我们取最接近的 2 的幂）。假设我们观察到单块 GPU 在显存中只能容纳 <d-math>mbs</d-math>=2，而我们只有 128 块 GPU 可用于训练。这意味着在 4 个梯度累积步下，我们将实现每个训练步 1,024 个样本即 4M token 的目标。现在，如果我们突然有 512 块 GPU 可用呢？我们可以保持 <d-math>mbs</d-math>=2 并把梯度累积步数设为 1，从而获得相同的 <d-math>gbs</d-math>，这将带来更快的训练！</p>
+<div class="note-box">
+<p class="note-box-title">📝 Note</p>
+<div class="note-box-content">
+<p>请记住，在 512+ GPU 规模下，取决于所用的网络，通信操作将开始受限于 <em>环形延迟</em>（ring latency，信号绕环传播一周所需的时间），这意味着我们无法再完全重叠 DP 通信。这会降低计算效率并影响吞吐。在这种情况下，我们应该开始探索其他可并行的维度。</p>
+</div>
+</div>
+<p>虽然数据并行能很好地把全规约梯度同步与反向计算重叠起来以节省时间，但这种优势在大规模下开始失效。为什么？随着我们加入越来越多的 GPU（数百或数千块），它们之间协调的开销显著增长，网络需求开始变得过大，超出收益所能承受的范围。结果就是，系统中每增加一块 GPU，我们的方案效率都会越来越低。</p>
+<p>我们可以在一些基准测试中看到实际发生的情况：</p>
+<!-- <p><img alt="image.png" src="/assets/images/dp_scaling.svg"/></p> -->
+<div class="l-body-outset" id="fragment-dp_scaling"></div>
+<!-- <script>
+            window.addEventListener('load', function() {
+                const frame = document.getElementById('plotFrame4');
+                frame.style.height = frame.contentWindow.document.documentElement.scrollHeight + 'px';
+                frame.style.width = frame.contentWindow.document.documentElement.scrollWidth + 'px';
+            });
+        </script> -->
+<p>如图所示，超过某个上限后，我们的吞吐开始明显下降，而每块 GPU 的显存占用保持不变，并且不受增加更多 DP rank 的影响。</p>
+<p>数据并行是我们跨更多 GPU 扩展训练的第一个（简单）策略。这项技术的工作方式类似梯度累积，但把前向传播和反向传播并行化到微批上，从而提升吞吐。</p>
+<p>不过，敏锐的读者可能已经注意到，这假设我们至少能把一个输入样本的前向传播（<d-math>mbs</d-math>=1）放进 GPU 显存。这并不总是成立！如我们所见，更大的模型往往装不进单块 GPU，即使启用了激活重计算：</p>
+<aside>提示：把参数量乘以 2，就能快速估算模型参数所需的最小显存——例如 70B → 140 GB（= 133 GiB）。</aside>
+<!-- <iframe class="l-body-outset" id="plotFrame5" src="assets/data/benchmarks/dp_ourjourney_memoryusage.html" width="90%" scrolling="no" frameborder="0"></iframe> -->
+<div class="l-body-outset" id="fragment-dp_ourjourney_memoryusage"></div>
+<!-- <script>
+            window.addEventListener('load', function() {
+                const frame = document.getElementById('plotFrame5');
+                frame.style.height = frame.contentWindow.document.documentElement.scrollHeight + 'px';
+                frame.style.width = frame.contentWindow.document.documentElement.scrollWidth + 'px';
+            });
+        </script> -->
+<!-- <p><img alt="dp_ourjourney_memoryusage.svg" src="/assets/images/dp_ourjourney_memoryusage.svg" /></p> -->
+<p>我们还看到，数据并行在超过一定规模后开始出现一些限制性的通信开销。对于这些更大的模型或更大的批大小，我们还有其他选择吗？谢天谢地，我们确实有一些解决方案——它们要么把部分张量移到 CPU 上，要么把权重/梯度/优化器状态张量切分到多个 GPU 设备上。</p>
+<p>切分主要有两大类方法：并行（张量并行、上下文并行或流水线并行）与分片（DeepSpeed ZeRO 或 PyTorch FSDP）。这两类方法在某种程度上是正交的，实际上可以组合使用！</p>
+<p>分片范式与 DP 密切相关，所以我们先通过考察 ZeRO 方法来了解它。</p>
+<a id="zero_redundancy_optimizer_(zero)"></a><h3 id="zero_redundancy_optimizer_(zero)">零冗余优化器（ZeRO）</h3>
+<p>本节我们将介绍 DeepSpeed ZeRO，这是一种旨在减少 LLM 训练中显存冗余的显存优化技术。</p>
+<p>虽然数据并行是扩展训练的一种高效方式，但在每个 DP rank 上朴素地复制优化器状态、梯度和参数会引入显著的显存冗余。ZeRO 通过在数据并行维度上切分优化器状态、梯度和参数来消除这种冗余，同时仍然允许用完整的参数集进行计算。这有时需要在 DP rank 之间进行更多通信，而这些通信能否被完全重叠则不一定，我们接下来就会看到！</p>
+<aside>本书将聚焦 ZeRO-1 到 ZeRO-3，因为这能让你对这项技术如何帮助减少显存占用有一个整体认识，同时展示需要考虑的取舍。你可以在 <a href="https://www.deepspeed.ai/tutorials/zero/">DeepSpeed 文档</a>中找到更多 ZeRO 变体的细节。</aside>
+<p>该方法被组织为三个可能的优化阶段：</p>
+<ul>
+<li>ZeRO-1：优化器状态切分</li>
+<li>ZeRO-2：优化器状态 + 梯度切分</li>
+<li>ZeRO-3：优化器状态 + 梯度 + 参数切分</li>
+</ul>
+<aside>我们这里说的“切分”，是指沿 DP 轴切分，因为 ZeRO 是一种数据并行方法。稍后我们会看到，我们也可以沿其他轴切分。</aside>
+<p>你可能已经注意到，我们可以分片的东西里没有激活。由于模型的每个 DP 副本收到不同的微批，每个 DP rank 上的激活也不同，因此它们不是重复的，也就无法分片！</p>
+<p>我们更仔细地看看每个 ZeRO 阶段的切分能节省多少显存。</p>
+<a id="memory_usage_revisited"></a><h4 id="memory_usage_revisited">重新审视显存占用</h4>
+<p><a href="#memory_usage_in_transformers" target="_self">前面</a>我们讨论了标准训练中优化器状态、梯度和参数的显存占用。我们把模型的参数量记作 <d-math>\Psi</d-math>（之前是 <d-math>N</d-math>，但这里我们采用 ZeRO 原论文的<d-cite bibtex-key="rajbhandari2020zero"></d-cite>记号）。在使用 Adam 优化器的混合精度训练中（本书<a href="#mixed_precision_training" target="_self">后文</a>会进一步讨论），我们需要存储的每一项的显存占用为：</p>
+<ul>
+<li>模型参数（半精度，即 BF16/FP16）：<d-math>2\Psi</d-math></li>
+<li>模型梯度（半精度，即 BF16/FP16）：<d-math>2\Psi</d-math></li>
+<li>FP32 下的模型参数与优化器状态：<d-math>4\Psi + (4\Psi + 4\Psi)</d-math></li>
+<li>FP32 下的模型梯度：<d-math>4\Psi</d-math>（可选，仅当我们希望以 FP32 累积梯度时才计入）</li>
+</ul>
+<p>如果我们不以 FP32 累积梯度，总显存消耗为 <d-math>2\Psi + 2\Psi + 12\Psi</d-math>；如果累积，则为 <d-math>2\Psi + 6\Psi + 12\Psi</d-math>。为简单起见，现在我们先聚焦于不进行 FP32 梯度累积的情况。</p>
+<p>ZeRO 的思路是把这些对象分片到各 DP rank 上，每个节点只存储各项的一个切片。这些切片随后在需要时被重建，从而把显存占用除以数据并行度 <d-math>N_d</d-math>：</p>
+<p><img alt="zero_memory.svg" src="/assets/images/zero_memory.svg"/></p>
+<p>这里，<d-math>\Psi</d-math> 表示参数数量，<d-math>k</d-math> 表示优化器状态的显存乘数（对于 Adam，正如我们刚刚看到的，<d-math>k=12</d-math>），<d-math>N_d</d-math> 表示 DP 度。</p>
+<aside>如果你在 ZeRO-2 或 ZeRO-3 中使用 FP32 梯度累积，则需要在梯度项上额外加上 <d-math>\frac{4\Psi}{N_d}</d-math>。</aside>
+<p>我们通过考察每个 ZeRO 阶段的工作方式来解释这一点。先从 ZeRO-1 开始。</p>
+<a id="zero-1:_partitioning_optimizer_states"></a><h4 id="zero-1:_partitioning_optimizer_states">ZeRO-1：切分优化器状态</h4>
+<p>在朴素 DP 中，所有 rank 在反向传播后收集相同的梯度，并同时执行完全相同的优化器步骤。这看起来有大量重复工作。我们能否避免它，同时减少显存占用？</p>
+<p>在 ZeRO-1 中，优化器状态被切分为 <d-math>N_d</d-math> 等份，其中 <d-math>N_d</d-math> 是 DP 度。这意味着分布在 DP rank 上的模型副本各自只跟踪 <d-math>\frac{1}{N_d}</d-math> 的优化器状态，并且在优化步骤中，只更新 <d-math>\frac{1}{N_d}</d-math> 的 FP32 权重。</p>
+<p>然而，在前向传播期间，每个副本都需要全部参数。因此，我们需要在优化器步骤之后额外加入一次<strong><em>全收集</em></strong>（all-gather，这是我们遇到的第二种集合通信原语！），好让每个模型副本都拥有完整的更新后权重。</p>
+<p>这就解释了我们在上一张图中看到的显存公式 <d-math>2\Psi + 2\Psi + \frac{k\Psi}{N_d}</d-math>！以下是单个训练步的操作序列总结：</p>
+<ol>
+<li>每个副本都用同一套完整的 BF16 参数执行前向传播，但各副本使用不同的微批。</li>
+<li>每个副本都用同一套完整的梯度执行反向传播，但各副本使用不同的微批。</li>
+<li>对梯度执行<strong><em>规约散射</em></strong>（reduce-scatter，另一种原语——我们稍后会解释它）。</li>
+<li>每个副本基于其本地的优化器状态执行优化器步骤（只涉及 <d-math>\frac{1}{N_d}</d-math> 的优化器状态），得到 <d-math>\frac{1}{N_d}</d-math> 的更新后 FP32 参数，这些参数随后可转换为 <d-math>\frac{1}{N_d}</d-math> 的完整 BF16 参数集。</li>
+<li>对 BF16 参数执行全收集，把缺失的分片送回每个副本。这是 ZeRO 中新增的操作，普通 DP 并不使用。</li>
+</ol>
+<aside>注意：规约散射的速度是全规约的两倍！<em>太好了，第三种通信原语！</em></aside>
+<p>你可能想知道这个“规约散射”操作究竟是什么、整个过程长什么样，所以我们用下图让它更直观一些。我们会逐步走完前向/反向传播循环的所有步骤：</p>
+<p><img alt="dp_zero1.gif" src="/assets/images/dp_zero1.gif"/></p>
+<p>从实际通信来看，与普通 DP 相比，ZeRO-1 把梯度上的全规约通信改成了规约散射操作，并在优化器步骤之后增加了一次覆盖所有参数的全收集操作。具体如下：</p>
+<!-- RH: In this figure, on the right, can "AllGather Params" and "ReduceScatter Grad" be changed to "All-gather params" and "Reduce-scatter grads"? -->
+<p><img alt="dp_zero1_overlap.svg" src="/assets/images/dp_zero1_overlap.svg"/></p>
+<p>如果你一直跟着读，会记得我们在讨论普通 DP 时提到过，可以把全规约的梯度通信与反向传播计算重叠。在 ZeRO-1 中，我们同样可以研究如何高效地重叠新增的 BF16 参数全收集。主要有两种策略：</p>
+<ul>
+<li><strong>在优化器步骤期间：</strong>优化器更新完第一个参数分片后，就可以立刻发起全收集。这样通信就有可能与其他参数的更新过程重叠。</li>
+<li><strong>在前向传播期间：</strong>我们可以把每一层参数的全收集与前向传播重叠。</li>
+</ul>
+<div class="note-box">
+<p class="note-box-title">📝 Note</p>
+<div class="note-box-content">
+<p>可惜这些技术实现起来并不简单，需要精细地使用钩子/分桶。实践中，我们可以直接使用 PyTorch 原生的 ZeRO-3/FSDP 实现，并把 <code>FSDPUnit</code> 设为整个模型（更多细节见后文）。</p>
+</div>
+</div>
+<p>在 ZeRO-1 中，优化器状态已经被切分，这意味着每个副本只更新 <d-math>\frac{1}{N_d}</d-math> 的状态。敏锐的读者可能已经注意到，其实没有必要让所有 DP rank 都保留全部梯度，因为优化步骤只需要其中一部分。这就是 ZeRO-2！</p>
+<a id="zero-2:_adding_gradient_partitioning"></a><h4 id="zero-2:_adding_gradient_partitioning">ZeRO-2：加入<strong>梯度分片</strong></h4>
+<p>由于每个副本只需要保留与其优化器状态分片相对应的那部分梯度分片，把梯度也像优化器状态一样分片就顺理成章了。于是，在反向传播时，我们不再对梯度做全规约，而只做规约散射！这样内存中只保留所需的 <d-math>\frac{1}{N_d}</d-math> 梯度，相比 ZeRO-1 又节省了更多显存。</p>
+<aside>在 FP32 梯度累积的情况下，我们只需保留 <d-math>\frac{1}{N_d}</d-math> 的 FP32 梯度，用于累积来自规约散射的 BF16 梯度。在优化器步骤中，这 <d-math>\frac{1}{N_d}</d-math> 的 FP32 梯度用于更新优化器状态的本地分片。</aside>
+<p><img alt="dp_zero2.gif" src="/assets/images/dp_zero2.gif"/></p>
+<p>现在很容易看出，对梯度做分片可得到 <d-math>2\Psi + \frac{2\Psi+k\Psi}{N_d}</d-math>，而随着 <d-math>N_d</d-math> 增大，我们最多可比基线少用 8 倍显存。在通信方面，过程与 ZeRO-1 相同，唯一区别在于我们边通信边释放显存：两者都需要对梯度做一次规约散射，并对所有参数做一次全收集。因此在通信上，ZeRO-2 也与普通 DP 训练等价。</p>
+<!-- RH: In this figure, on the right, can "AllGather Params" and "ReduceScatter Grad" be changed to "All-gather params" and "Reduce-scatter grads"? -->
+<p><img alt="dp_zero2_overlap.svg" src="/assets/images/dp_zero2_overlap.svg"/></p>
+<aside>注意：你可能会发现，相比 ZeRO-1，使用 ZeRO-2 除了实现复杂度之外并没有真正的额外开销，而实际上 ZeRO-2 通常是更好的选择。</aside>
+<p>既然梯度也已分片，我们是否大功告成了，还是可以继续改进？ZeRO-3 登场！</p>
+<a id="zero-3:_adding_parameter_partitioning_(fsdp)"></a><h4 id="zero-3:_adding_parameter_partitioning_(fsdp)">ZeRO-3：加入<strong>参数分片</strong>（FSDP）</h4>
+<p>对于第三阶段，我们把上述在 DP 副本间分片优化器状态和梯度的做法，扩展到分片模型参数。</p>
+<div class="note-box">
+<p class="note-box-title">📝 Note</p>
+<div class="note-box-content">
+<p>PyTorch 对这一阶段的原生实现称为 FSDP（Fully Sharded Data Parallelism，完全分片数据并行）。本书中我们统一称之为 ZeRO-3，但无论你在哪里看到它，都可以把它理解为 FSDP。</p>
+</div>
+</div>
+<p>那么，当模型参数被分散存放时，实际的前向或反向传播要怎么做？很简单：需要时就把它们收集起来。在前向传播中，过程如下：</p>
+<p><img alt="dp_zero3_fwd.svg" src="/assets/images/dp_zero3_fwd.svg"/></p>
+<p>当我们执行前向传播并依次经过各层时，我们按需取回所需的参数，并在不再需要时立刻把它们从显存中清除。反向传播同理，只是流动方向相反。在这里，我们产生梯度分片：</p>
+<p><img alt="dp_zero3_bwd.svg" src="/assets/images/dp_zero3_bwd.svg"/></p>
+<p>另一个问题是，在一个训练步中，我们需要在前向和反向传播过程中持续执行这些全收集，相比 ZeRO-2，一个训练步会多出 <d-math>2\cdot \text{num\_layers} -1</d-math> 次全收集。每次都会带来一小部分<em>基础延迟</em>开销，如下图所示：</p>
+<!-- RH: In this figure, change "AllGather Params" and "ReduceScatter Grads" to "All-gather params" and "Reduce-scatter grads" and lowercase "Free"? -->
+<p><img alt="dp_zero3_overlap.svg" src="/assets/images/dp_zero3_overlap.svg"/></p>
+<p>在前向传播中，我们在需要时对参数执行全收集，因此存在 <d-math>\Psi</d-math> 的通信开销。由于参数在前向传播中使用后就被立即丢弃，我们在反向传播中还需要再做一次全收集，又产生 <d-math>\Psi</d-math> 的通信开销。最后，梯度上还需要与 ZeRO-2 相同的规约散射操作，通信开销同样是 <d-math>\Psi</d-math>。于是我们得到的总通信开销为 <d-math>3\Psi</d-math>，而 ZeRO-2 为 <d-math>2\Psi</d-math>。</p>
+<p>这听起来通信开销很大，但其实问题不大，因为我们可以把下一层参数的通信与当前层的前向传播重叠起来，这种做法称为<strong><em>预取</em></strong>。借助预取，我们在对<em>第 n 层</em>做前向传播时，对<em>第 n+1 层</em>的权重做全收集；同理，我们在对<em>第 n 层</em>做反向传播时，对<em>第 n-1 层</em>的权重做全收集。当然，这种重叠只有在 DP 规模不过大时才有效（经验法则是 DP 不应超过 512）。</p>
+<aside>注意：我们用“DP”同时指代数据并行技术和用于数据并行的 GPU 数量<em>（DP = DP 大小 = DP 并行度）</em>。</aside>
+<p>在显存方面，可以看到我们的公式现在已经达到最终形式 <d-math>\frac{2\Psi +2\Psi+k\Psi}{N_d}</d-math>，这意味着只要增大 DP 规模，理论上我们就能把显存使用量无限压低——至少对与模型相关的参数来说是这样。但要注意，这对中间激活没有帮助——针对后者，我们可以像前面看到的那样使用激活重计算和梯度累积。</p>
+<p>先来总结一下我们到目前为止探索 DP 和 ZeRO 的历程。我们已经看到，仅靠增加模型副本就能扩展训练，从而用 DP 显著提升训练吞吐。借助 ZeRO，我们可以把参数、梯度和优化器状态切分到各个 DP 副本上，从而训练那些通常放不进单块 GPU 的模型，代价只是一点通信开销。</p>
+<aside>如果你想进一步了解 FSDP1、FSDP2 及其相关实现中的一些复杂之处，可以看看<a href="https://christianjmills.com/posts/mastering-llms-course-notes/conference-talk-012/">这篇不错的博客</a>。</aside>
+<p>不过，这样做存在一些限制：DP 只有在模型的一层能放进单块 GPU 时才可行，而 ZeRO 只能切分参数、梯度和优化器状态，无法切分激活显存！回想<a href="#memory_usage_in_transformers" target="_self">关于激活显存的讨论</a>，这部分显存随序列长度和批大小增长。我们当然可以直接限制这两者，但在实践中，我们并不希望仅仅因为硬件限制就只能用很短的序列长度来训练。</p>
+<!-- RH: In this figure, Zero should be ZeRO -->
+<!-- <iframe class="l-body-outset" id="plotFrame6" src="assets/data/benchmarks/zero3_memoryusage.html" width="90%" scrolling="no" frameborder="0"></iframe> -->
+<div class="l-body-outset" id="fragment-zero3_memoryusage"></div>
+<!-- <script>
+            window.addEventListener('load', function() {
+                const frame = document.getElementById('plotFrame6');
+                frame.style.height = frame.contentWindow.document.documentElement.scrollHeight + 'px';
+                frame.style.width = frame.contentWindow.document.documentElement.scrollWidth + 'px';
+            });
+        </script> -->
+<!-- <p><img alt="zero3_memoryusage.svg" src="/assets/images/zero3_memoryusage.svg" /></p> -->
+<p>为了克服这个问题，是时候考察一个新的、正交的并行维度了——<strong><em>张量并行（TP）</em></strong>。与依赖大量参数通信的 ZeRO-3 不同，TP 提出把参数、梯度、优化器状态乃至激活都切分到各设备上，同时不需要在 GPU 之间对模型参数做任何通信。</p>
+<p>什么？这怎么可能？！接下来我们就来探究这种看似神奇的方法。🙂</p>
+<a id="tensor_parallelism"></a><h2 id="tensor_parallelism">张量并行</h2>
+<div class="audio-container">
+<audio controls="">
+<source src="https://nanotron-ultrascale-playbook.static.hf.space/assets/audio/Tensor, Sequence, and Context Parallelism for Distributed Training.wav" type="audio/wav"/>
+                Your browser does not support the audio element.
+              </audio>
+<div class="figure-legend">
+<p>想为阅读体验增添一点播客的感觉，不妨在阅读时收听 NotebookLM 主持人讨论本书接下来几节的内容。</p>
+</div>
+</div>
+<p>我们已经用 ZeRO 切分了模型的参数、梯度和优化器状态，但一旦激活显存超出我们的显存预算，就会撞上限制。欢迎张量并行（TP）登场——这种方法不仅切分权重、梯度和优化器状态，也切分激活，而且无需在计算前把它们全部收集起来。听起来像做梦一样！我们先来看看 TP 在简单的矩阵乘法（matmul）运算中是如何工作的。</p>
+<p>张量并行利用了矩阵乘法 <d-math>A \times B</d-math> 的数学性质。要理解它的工作原理，我们来看两个使这种并行化成为可能的基本等式：</p>
+<d-math block="">
+            \begin{aligned}
+            &amp;\text{1.} \quad A\cdot B = A \cdot \begin{bmatrix} B_1 &amp; B_2 &amp; \cdots \end{bmatrix} = \begin{bmatrix} AB_1 &amp; AB_2 &amp; \cdots \end{bmatrix} \\
+            &amp;\text{2.} \quad A\cdot B =\begin{bmatrix} A_1 &amp; A_2 &amp; \cdots \end{bmatrix} \begin{bmatrix} B_1 \\ B_2 \\ \vdots \end{bmatrix} = \sum_{i=1}^n A_i B_i
+            \end{aligned}
+        </d-math>
+<p>这意味着，我们既可以逐列乘以 <d-math>B</d-math> 来计算矩阵乘积，也可以逐行相乘再把结果合并。在神经网络中，矩阵乘法更常表示为 <d-math>X \times W</d-math> 的形式，其中：</p>
+<ul>
+<li><d-math>X</d-math> 表示输入或激活值</li>
+<li><d-math>W</d-math> 表示 Linear 层的权重</li>
+</ul>
+<p>在实践中，这个运算的一个小例子如下：</p>
+<p style="text-align: center"><img alt="TP diagram" src="/assets/images/tp_diagram.svg" width="300px"/></p>
+<p>我们来看看如何并行化这个运算！在张量并行中，张量沿某个特定维度被切成 <d-math>N</d-math> 个分片，并分发到 <d-math>N</d-math> 块 GPU 上。矩阵既可以按列切分，也可以按行切分，从而得到行并行或列并行。正如我们将在接下来的讨论中看到的，按行切分和按列切分需要不同的通信原语。</p>
+<p>第一种选择是采用<strong><em>按列</em></strong>切分（也称<em>列线性</em>）：我们把完整的输入矩阵复制到每个 worker，这需要一种名为<strong><em>广播</em></strong>的操作，同时把权重矩阵按列切分。随后输入与这些部分权重矩阵相乘，最后通过一次全收集操作把结果合并起来。</p>
+<p><img alt="image.png" src="/assets/images/tp_diagram2.png"/></p>
+<p>以下是按列张量并行的代码实现：</p>
+<details style="background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; margin: 1em 0;">
+<summary style="padding: 12px; cursor: pointer; user-select: none; background: #f3f4f6; border-bottom: 1px solid #d0d7de;">                👉 Picotron 中的列并行 TP 实现（点击展开）
+            </summary>
+<div class="code-embed-container" style="margin: 0; border-radius: 0; overflow-x: scroll; width: max-content; min-width: 100%; font-size: 8px;"></div>
+<script src="https://emgithub.com/embed-v2.js?target=https%3A%2F%2Fgithub.com%2Fhuggingface%2Fpicotron%2Fblob%2F1004ae37b87887cde597c9060fb067faa060bafe%2Fpicotron%2Ftensor_parallel%2Ftensor_parallel.py%23L54-L123&amp;style=github&amp;type=code&amp;showBorder=on&amp;showLineNumbers=on&amp;showFileMeta=on&amp;showFullPath=on&amp;showCopy=on"></script>
+
+</details>
+<p>第二种选择称为<strong><em>按行</em></strong>切分（或<em>行线性</em>）。细心的读者可能已经猜到，行线性意味着把权重矩阵切成若干行块。然而，这同样要求我们切分输入，因此需要使用<strong><em>散射</em></strong>操作（我们的第四个分布式通信原语！），而不是列线性切分中使用的广播操作。每个 worker 上的结果已经具有正确的形状，但需要求和才能得到最终结果，所以这种方案还需要一次全规约操作：</p>
+<p><img alt="image.png" src="/assets/images/tp_diagram3.png"/></p>
+<p>以下为按行张量并行的实现：</p>
+<details style="background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; margin: 1em 0;">
+<summary style="padding: 12px; cursor: pointer; user-select: none; background: #f3f4f6; border-bottom: 1px solid #d0d7de;">                👉 Picotron 中的行并行 TP 实现（点击展开）
+            </summary>
+<div class="code-embed-container" style="margin: 0; border-radius: 0; overflow-x: scroll; width: max-content; min-width: 100%; font-size: 8px;"></div>
+<script src="https://emgithub.com/embed-v2.js?target=https%3A%2F%2Fgithub.com%2Fhuggingface%2Fpicotron%2Fblob%2F1004ae37b87887cde597c9060fb067faa060bafe%2Fpicotron%2Ftensor_parallel%2Ftensor_parallel.py%23L125-L189&amp;style=github&amp;type=code&amp;showBorder=on&amp;showLineNumbers=on&amp;showFileMeta=on&amp;showFullPath=on&amp;showCopy=on"></script>
+
+</details>
+<p>现在我们有了 TP 的基本构件，接下来看看如何在 Transformer 层内部有效地组合它们！</p>
+<a id="tensor_parallelism_in_a_transformer_block"></a><h3 id="tensor_parallelism_in_a_transformer_block">Transformer 模块中的张量并行</h3>
+<p>为了得出一个可遵循的策略，我们从玩具示例转向真实的模型构件。Transformer 模型由两个主要构件组成：前馈多层感知机（MLP）模块和多头注意力（MHA）模块。我们可以对两者都应用张量并行。</p>
+<p>前馈部分可以通过“先列线性、后行线性”的切分来实现并行，这相当于在前向传播中做一次广播来复制输入，再做一次全规约。要注意，实际训练中并不需要这次广播，因为我们可以确保输入在 TP rank 之间已经同步。相比“先行线性、后列线性”的切分，这种方案更高效，因为可以跳过两次切分操作之间的中间全规约。</p>
+<p><img alt="image.png" src="/assets/images/tp_diagram4.png"/></p>
+<p>现在我们已经为 Transformer 的前馈部分找到了高效的方案，接下来看看多头注意力模块。</p>
+<p>这里我们大体可以沿用类似的思路：Query（Q）、Key（K）和 Value（V）矩阵按列并行的方式切分，输出投影则可视为行线性。对于多头注意力，列并行有一个非常自然的解释：每块 GPU 计算单个注意力头或部分注意力头的注意力。同样的思路也适用于<a href="https://arxiv.org/abs/1911.02150"><strong><em>多查询注意力（MQA）</em></strong></a>或<a href="https://arxiv.org/abs/2305.13245"><strong><em>分组查询注意力（GQA）</em></strong></a>，其中 key 和 value 在多个 query 之间共享。</p>
+<p><img alt="image.png" src="/assets/images/tp_full_diagram.png"/></p>
+<p>我们之所以能如此有效地把张量并行应用到注意力和 MLP 模块上，是因为它们拥有天然独立的维度。注意力模块可以沿 <code>num_attention_heads</code> 维度并行，因为每个注意力头都独立运算。同样，MLP 模块可以沿 <code>hidden_dim</code> 维度并行，因为前馈网络内部的计算沿该维度相互独立。</p>
+<p>不过要注意，张量并行度不应超过注意力头的数量，因为我们是沿 <code>num_attention_heads</code> 维度切分 QKV 投影的。使用分组查询注意力（GQA）时，我们有 <d-math>num\_attention\_heads</d-math> 个查询头，但只有 <d-math>num\_kv\_heads</d-math> 个键/值头（且 <d-math>num\_attention\_heads &gt;= num\_kv\_heads</d-math>）。这种情况下，我们仍可以设 <d-math>TP = num\_attention\_heads</d-math>，但需要确保 K/V 头在各 GPU 之间保持正确同步。例如，Llama-3 8B 有 32 个查询头，却只有 8 个键/值头，因此虽然 TP 并行度理论上可以开到 32，我们仍需谨慎实现，以维持 K/V 头在张量并行 worker 之间的同步。</p>
+<p>还要注意，张量并行并不是训练中的万灵药。我们把若干分布式通信原语直接加进了模型的计算路径，因此很难把它们完全隐藏或与计算重叠（就像我们在 ZeRO 中所做的那样），所以最终性能将是计算与显存收益同新增通信开销之间权衡的结果。下面用图示说明：</p>
+<!-- RH: In this figure, change "TP region" to "TP Region" and "AllReduce Activs" to "All-reduce activs"? -->
+<p><img alt="Forward pass in tensor parallelism" src="/assets/images/tp_overlap.svg"/></p>
+<aside>通过执行分块矩阵乘法并配合异步通信/计算，可以部分隐藏这部分通信。</aside>
+<p>观察张量并行 MLP（MHA 同样适用）中各运算的时间线，能更好地理解其中的权衡。在每个解码器层的前向传播中，我们都会遇到一个由全规约操作构成的同步点，它无法与计算重叠。这部分<em>暴露在外的通信开销</em>是必要的，用于在应用最终的 LayerNorm 之前合并各张量并行 rank 上的部分结果。</p>
+<aside>例如，Megatron-LM 和 Nanotron 实现了全收集与全连接层（FC1）计算的部分重叠：矩阵乘法结果的一部分会在其余部分仍在计算时就被发送到另一块 GPU。</aside>
+<p>张量并行确实有助于减少矩阵乘法的激活显存，因为中间激活被分片到了各块 GPU 上。但对 LayerNorm 这类操作，我们仍需收集完整的激活，这意味着我们并未拿到本可获得的全部显存收益。此外，TP 带来了可观的通信需求，且高度依赖网络基础设施。无法把这次特定的全规约完全隐藏在计算之后，意味着它直接计入前向传播的关键路径；所谓关键路径，是指决定完成前向传播所需最短时间的那一串运算。</p>
+<aside>这是一个活跃的研究方向，近期的工作如 Domino<d-cite bibtex-key="wang2024domino"></d-cite> 就在探索最大化这种重叠的新技术。</aside>
+<p>下面更仔细地考察一下随着 TP 并行度增大而产生的权衡：</p>
+<!-- <iframe class="l-body-outset" id="plotFrame13" src="assets/data/benchmarks/tp_scaling.html" width="90%" scrolling="no" frameborder="0"></iframe> -->
+<div class="l-body-outset" id="fragment-tp_scaling"></div>
+<!-- <script>
+            window.addEventListener('load', function() {
+                const frame = document.getElementById('plotFrame13');
+                frame.style.height = frame.contentWindow.document.documentElement.scrollHeight + 'px';
+                frame.style.width = frame.contentWindow.document.documentElement.scrollWidth + 'px';
+            });
+        </script> -->
+<!-- 
+        <p><img alt="Impact of Tensor Parallelism on model performance and batch size capacity: while increasing TP leads to reduced per-GPU throughput (left), it enables processing of larger batch sizes (right), illustrating the trade-off between computational efficiency and memory availability in distributed training." src="/assets/images/tp_scaling.svg" /></p> -->
+<p>增大 TP 会降低单块 GPU 的吞吐（左图），但却能处理更大的批大小（右图），这体现了分布式训练中计算效率与可用显存之间的权衡。</p>
+<p>在实践中，如上图左侧所示，当规模超过 8 块 GPU 后，张量并行的通信开销会变得格外明显。单个节点内的张量并行可以利用高速的 NVLink 互连，而跨节点则只能依赖较慢的网络连接。我们看到从 TP=8 到 TP=16 时性能显著下降，从 TP=16 到 TP=32 时降幅更陡。并行度更高时，通信开销会高到迅速主导计算时间。</p>
+<p>话虽如此，张量并行通过把模型参数、梯度、优化器状态以及（在一定程度上）激活分散到各块 GPU 上，对显存使用带来了重要的好处。我们来看看这一效果在一个 70B 参数模型上的表现：</p>
+<!-- RH: Should TP-1 in this figure be TP=1? -->
+<!-- <iframe class="l-body-outset" id="plotFrame7" src="assets/data/benchmarks/tp_memoryusage.html" width="90%" scrolling="no" frameborder="0"></iframe> -->
+<div class="l-body-outset" id="fragment-tp_memoryusage"></div>
+<!--    <script>
+            window.addEventListener('load', function() {
+                const frame = document.getElementById('plotFrame7');
+                frame.style.height = frame.contentWindow.document.documentElement.scrollHeight + 'px';
+                frame.style.width = frame.contentWindow.document.documentElement.scrollWidth + 'px';
+            }); -->
+<!-- </script> -->
+<!-- <p><img alt="tp_memoryusage.svg" src="/assets/images/tp_memoryusage.svg" /></p> -->
+<p>增大张量并行度可以降低每块 GPU 上模型参数、梯度和优化器状态所需的显存，直到我们能把一个更大的模型塞进单个 8 卡节点。</p>
+<p>有没有办法从这项技术中获得更多收益？层归一化和 dropout 仍然需要在每块 GPU 上收集完整的激活，部分抵消了显存节省。如果能为这些剩余操作也找到并行化的办法，我们还能做得更好。</p>
+<div class="note-box">
+<p class="note-box-title">📝 Note</p>
+<div class="note-box-content">
+<p>关于张量并行训练中的层归一化，有一个有趣的细节：由于全收集之后每个 TP rank 看到的激活相同，LayerNorm 的权重在反向传播后其实不需要用全规约来同步梯度，它们在各个 rank 之间天然保持一致。不过对于 dropout 操作，我们必须确保随机种子在 TP rank 之间同步，以维持确定性行为。</p>
+</div>
+</div>
+<p>接下来，我们将探讨张量并行的一个小而自然的扩展——<strong><em>序列并行</em></strong>，它正是为此而生。</p>
+<a id="sequence_parallelism"></a><h3 id="sequence_parallelism">序列并行</h3>
+<p>序列并行（SP）把模型中不由张量并行处理的部分（如 dropout 和 LayerNorm）的激活与计算切分开来，但沿输入序列维度切分，而不是沿隐藏维度。</p>
+<div class="note-box">
+<p class="note-box-title">📝 Note</p>
+<div class="note-box-content">
+<p>序列并行这一术语的含义有些过载。本节讨论的序列并行与张量并行紧密耦合，作用于 dropout 和层归一化操作。然而，当我们转向更长的序列时，注意力计算会成为瓶颈，这就需要环形注意力之类的技术。这类技术有时也被称为序列并行方法，但为了区分两者，我们改称其为<em>上下文并行</em>。因此，当你在本书中看到“序列并行”时，请记住它是与张量并行配合使用的（相比之下，上下文并行可以独立使用）。</p>
+</div>
+</div>
+<p>这样做是必要的，因为这些操作需要访问完整的隐藏维度才能正确计算。例如，LayerNorm 需要完整的隐藏维度来计算均值和方差：</p>
+<d-math block="">
+            \text{LayerNorm}(x) = \gamma \cdot \frac{x - \mu}{\sqrt{\sigma^2 + \epsilon}} + \beta
+        </d-math>
+<p>其中 <d-math>\mu = \text{mean}(x)</d-math> 与 <d-math>\sigma^2 = \text{var}(x)</d-math> 是沿隐藏维度 <d-math>h</d-math> 计算的。</p>
+<p>因此，尽管这些操作的计算量很小，它们仍然需要可观的激活显存。序列并行改为沿序列维度切分，从而把这份显存负担分片到各块 GPU 上。</p>
+<p>下图展示了我们如何借助不同的集合通信操作（标记为 <em>f</em> 和 <em>g</em>）在张量并行区域与序列并行区域之间切换。实践中，我们会从左往右进行：</p>
+<!-- RH: In this diagram, can the f and g labels be italicized, a dash added in "Self Attention," and "GeLU" changed to "GELU"? -->
+<p style="text-align: center"><img alt=" in forward: f = no-op ; f* = all-reduce ; g = all-gather ; g* = reduce-scatter
+            in backward: f = all-reduce ; f* = no-op ; g = reduce-scatter ; g* = all-gather
+           SP region needs full hidden_dim" src="/assets/images/tp_sp_diagram.png" style="width: 500px"/></p>
+<p>关键挑战在于高效地管理这些切换，同时保持较低的显存占用并维持正确性。</p>
+<p>在张量并行中，前向传播时：</p>
+<ul>
+<li><em>f</em> 是空操作（no-op），因为激活在各 rank 之间已经重复。</li>
+<li><em>f*</em> 是一次全规约，用于同步激活并确保正确性。</li>
+</ul>
+<p>而在反向传播时：</p>
+<ul>
+<li><em>f*</em> 是空操作，因为梯度在各 rank 之间已经重复。</li>
+<li><em>f</em> 是一次全规约，用于同步梯度。</li>
+</ul>
+<p>这些 <em>f</em> 和 <em>f*</em> 操作被称为<strong><em>共轭对</em></strong>，因为它们互为补充——在每一趟传播中，当其中一个为空操作时，另一个就是全规约，而在另一趟传播中则正好相反。</p>
+<p>对于序列并行，我们使用标记为 <em>g</em> 和 <em>g*</em> 的另一组操作。具体来说，我们在 SP 区域内避免使用全规约，因为那将需要收集完整的激活并推高峰值显存占用，从而违背 SP 的初衷。</p>
+<p>那么这里究竟发生了什么？就像某个著名 LLM 会说的那样，我们一步一步来看：</p>
+<!-- RH: Please check the suggested changes here carefully - I've tried to make this clearer and match it a little better to the figure. In the figure, change GeLU to GELU and italicize the labels on the left and right? Also, add parentheses around the labels on the left (e.g., "(b,s/2,h)")? Or do they not always need to be included in the text below? -->
+<div class="l-body" style="display: grid; grid-template-columns: 1fr 1fr; align-items: center;">
+<div>
+<p style="margin-bottom: 0;"><strong>初始 LayerNorm 层（SP 区域）</strong></p>
+<ul style="margin-top: 0;">
+<li>输入张量 <em>X1*</em> 和 <em>X2*</em> <d-math>(b,s/2,h)</d-math> 进入，它们已经沿序列维度切分。</li>
+<li>每块 GPU 在自己的序列分块上独立计算 LayerNorm，得到 <em>Y1*</em> 和 <em>Y2*</em>。</li>
+</ul>
+<p style="margin-bottom: 0;"><strong>第一次切换（SP → TP）</strong></p>
+<ul style="margin-top: 0;">
+<li><em>g</em> 操作（全收集）把 <em>Y1</em> 和 <em>Y2</em> 合并回完整序列长度。</li>
+<li>恢复出 <em>Y</em> <d-math>(b,s,h)</d-math>，因为列线性层需要完整的隐藏维度 <d-math>h</d-math>。</li>
+</ul>
+<p style="margin-bottom: 0;"><strong>第一个线性层（TP 区域）</strong></p>
+<ul style="margin-top: 0;">
+<li><em>A1</em> 和 <em>A2</em> 是列线性层，因此它们沿隐藏维度切分 <em>Y</em>。</li>
+<li>GELU 在每块 GPU 上独立施加。</li>
+<li><em>Z1*</em> 和 <em>Z2*</em> 的形状为 <d-math>(b,s,h/2)</d-math>。</li>
+</ul>
+<p style="margin-bottom: 0;"><strong>第二个线性层（TP 区域）</strong></p>
+<ul style="margin-top: 0;">
+<li><em>B1</em> 和 <em>B2</em> 是行线性层，因此它们恢复了隐藏维度。</li>
+<li><em>W1</em> 和 <em>W2</em> 的形状为 <d-math>(b,s,h)</d-math>，需要相加求和。</li>
+</ul>
+<p style="margin-bottom: 0;"><strong>最后的切换（TP → SP）</strong></p>
+<ul style="margin-top: 0;">
+<li><em>g*</em> 操作（规约散射）在沿序列维度散射的同时进行规约，以保证前面行线性层的正确性。</li>
+<li><em>W1*</em> 和 <em>W2*</em> 的形状为 <d-math>(b,s/2,h)</d-math>。</li>
+</ul>
+</div>
+<div>
+<img alt="image.png" src="/assets/images/tp_sp_diagram_zoomed.png"/>
+</div>
+</div>
+<p>序列并行的一个关键优势在于，它降低了我们需要存储的最大激活尺寸。仅使用张量并行时，我们必须在多个位置存储形状为 <d-math>(b,s,h)</d-math> 的激活。而有了序列并行，最大激活尺寸降至 <d-math>\frac{b \cdot s \cdot h}{tp}</d-math>，因为我们始终要么沿序列维度、要么沿隐藏维度进行切分。</p>
+<p>在 TP 与 TP+SP 中跟踪所有按不同方式分片的部分确实有点困难——请相信我们，我们自己画图时也觉得难，所以我们做了下面这张小表，用来总结前向传播过程中激活（也就是 <code>hidden_states</code>）的形状如何沿隐藏维度 <d-math>h</d-math> 和序列维度 <d-math>s</d-math> 变化：</p>
+<table>
+<thead>
+<tr>
+<th>Region</th>
+<th>仅 TP</th>
+<th>TP + SP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>进入 TP（列线性）</td>
+<td><d-math>h</d-math>：分片（<code>weight_out</code> 为分片）<br/><d-math>s</d-math>：完整</td>
+<td><d-math>h</d-math>：分片（<code>weight_out</code> 为分片）<br/><d-math>s</d-math>：<strong>全收集</strong>为完整</td>
+</tr>
+<tr>
+<td>TP 区域</td>
+<td><d-math>h</d-math>：分片<br/><d-math>s</d-math>：完整</td>
+<td><d-math>h</d-math>：分片<br/><d-math>s</d-math>：完整</td>
+</tr>
+<tr>
+<td>退出 TP（行线性）</td>
+<td><d-math>h</d-math>：完整（<code>weight_out</code> 为完整 + 为保证正确性做 <strong>全规约</strong>）<br/><d-math>s</d-math>：完整</td>
+<td><d-math>h</d-math>：完整（<code>weight_out</code> 为完整 + 为保证正确性做 <strong>规约散射</strong>）<br/><d-math>s</d-math>：<strong>规约散射</strong>为分片</td>
+</tr>
+<tr>
+<td>SP 区域</td>
+<td><d-math>h</d-math>：完整<br/><d-math>s</d-math>：完整</td>
+<td><d-math>h</d-math>：完整<br/><d-math>s</d-math>：分片</td>
+</tr>
+</tbody>
+</table>
+<p>再来看嵌入层：</p>
+<table>
+<thead>
+<tr>
+<th>Region</th>
+<th>朴素 TP</th>
+<th>TP + SP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>嵌入层（行线性，按词表分片）</td>
+<td><d-math>h</d-math>：完整（<code>weight_out</code> 为完整 + 为保证正确性做 <strong>全规约</strong>）<br/><d-math>s</d-math>：完整</td>
+<td><d-math>h</d-math>：完整（<code>weight_out</code> 为完整 + 为保证正确性做 <strong>规约散射</strong>）<br/><d-math>s</d-math>：<strong>规约散射</strong>为分片</td>
+</tr>
+</tbody>
+</table>
+<p>借助序列并行，我们可以节省更多激活显存，从而把批大小和序列长度推到仅靠张量并行无法达到的水平。来看看这对前面那个 70B 模型的例子意味着什么：</p>
+<!-- <iframe class="l-body-outset" id="plotFrame8" src="assets/data/benchmarks/tp_sp_memoryusage.html" width="90%" scrolling="no" frameborder="0"></iframe> -->
+<div class="l-body-outset" id="fragment-tp_sp_memoryusage"></div>
+<!-- <script>
+            window.addEventListener('load', function() {
+                const frame = document.getElementById('plotFrame8');
+                frame.style.height = frame.contentWindow.document.documentElement.scrollHeight + 'px';
+                frame.style.width = frame.contentWindow.document.documentElement.scrollWidth + 'px';
+            }); -->
+<!-- </script> -->
+<!-- <p><img alt="tp_sp_memoryusage.svg" src="/assets/images/tp_sp_memoryusage.svg" /></p> -->
+<p>我们再次大幅降低了每块 GPU 的最大显存占用，使得在 TP+SP=16 时能容纳 16k token 的序列长度——相比朴素 TP 的情形有所改善！（TP=16 仍然偏大，正如上一节所见，但下一节我们会看到如何改进这一点。）</p>
+<p>你可能会问：使用 TP+SP 是否比朴素 TP 带来更多通信开销？答案是既对也不对。在朴素 TP 的前向传播中，每个 Transformer 模块有两次全规约操作；而在 SP 中，每个 Transformer 模块有两次全收集和两次规约散射操作。因此，SP 的通信操作次数是 TP 的两倍。但既然一次全规约可以拆解为一次全收集加一次规约散射（见附录中的<a class="" href="#a_quick_focus_on_ring_allreduce" target="_self">“Ring AllReduce”</a>一节），两者在通信开销上其实等价。反向传播同理，因为我们只是使用每个操作的共轭（空操作 ↔ 全规约，全收集 ↔ 规约散射）。</p>
+<p>如果你一直看得很仔细，会注意到我们说到每一层里有四次通信操作（注意力两次、MLP 两次）。使用 TP+SP 时，MLP 的性能分析长这样：</p>
+<!-- RH: In this figure, initial-cap "region" at the top (x3) and change "AllGather Activs" and "ReduceScatter Activs" to "All-gather activs" and "Reduce-scatter activs"? -->
+<p><img alt="tp_sp_overlap.svg" src="/assets/images/tp_sp_overlap.svg"/></p>
+<p>与朴素 TP 一样，TP+SP 也难以与计算重叠，这使得吞吐严重依赖通信带宽。这里同样如此，和朴素 TP 一样，TP+SP 通常只在节点内进行（把 TP 度保持在每节点 GPU 数以下；例如 TP≤8）。</p>
+<p>我们可以做基准测试，看这种通信开销在扩大张量并行规模时如何变得越来越成问题。我们来测量一个 3B 参数模型、序列长度为 4,096 时，随 TP（配合 SP）扩展的吞吐和显存利用率：</p>
+<!-- <iframe class="l-body-outset" id="plotFrame2" src="assets/data/benchmarks/tp_sp_scaling.html" width="90%" scrolling="no" frameborder="0"></iframe> -->
+<div class="l-body-outset" id="fragment-tp_sp_scaling"></div>
+<!-- <script>
+            window.addEventListener('load', function() {
+                const frame = document.getElementById('plotFrame2');
+                frame.style.height = frame.contentWindow.document.documentElement.scrollHeight + 'px';
+                frame.style.width = frame.contentWindow.document.documentElement.scrollWidth + 'px';
+            }); -->
+<!-- </script> -->
+<!-- <p><img alt="tp_sp_scaling.svg" src="/assets/images/tp_sp_scaling.svg" /></p> -->
+<p>同样，计算效率（左）与显存容量（右）之间存在权衡。更高的并行度通过降低激活显存，使我们能处理大得多的批大小，但同时也会降低每块 GPU 的吞吐，尤其是在超过每节点 GPU 数这一阈值之后。</p>
+<p>让我们总结一下观察结果：</p>
+<ul>
+<li>对这两种方法，我们都注意到从 TP=8 到 TP=16 时性能下降最大，因为此时通信从仅在单个节点内（NVLink）转为跨节点（EFA）。</li>
+<li>使用 TP + SP 带来的激活显存节省，帮助我们容纳比仅用 TP 大得多的批。</li>
+</ul>
+<p>我们已经看到，TP 如何通过沿隐藏维度切分注意力和前馈运算，帮助我们把激活分片到多块 GPU 上；也看到 SP 如何通过沿序列维度切分，自然补充了其余运算。</p>
+<div class="note-box">
+<p class="note-box-title">📝 Note</p>
+<div class="note-box-content">
+<p>由于 SP 区域中的 LayerNorm 层作用于序列的不同部分，它们的梯度在 TP rank 之间会不同。为保证权重保持同步，我们需要在反向传播中对其梯度做全规约，这类似于 DP 保证权重同步的方式。不过这只是很小的通信开销，因为 LayerNorm 的参数相对很少。</p>
+</div>
+</div>
+<p>尽管如此，TP+SP 仍有两个限制：如果扩大序列长度，TP 区域内的激活显存仍会暴涨；如果模型太大、TP=8 装不下，我们就会因节点间互连而看到大幅的性能下降。</p>
+<p>第一个问题可以用<strong><em>上下文并行</em></strong>解决，第二个问题可以用<em><strong>流水线并行</strong></em>解决。先来看看上下文并行！</p>
+<a id="context_parallelism"></a><h2 id="context_parallelism">上下文并行</h2>
+<p>借助张量并行 + 序列并行，我们可以显著降低每块 GPU 的显存需求，因为模型权重和激活都分布到了多块 GPU 上。然而，当训练的序列越来越长时（例如扩展到每条序列 128k 或更多 token），我们仍可能超出单个节点的可用显存，因为身处 TP 区域时我们仍要处理完整序列。</p>
+<p>此外，即使我们对激活做完全重计算（这会带来约 30% 的沉重计算开销），我们仍需要在显存中保留层边界处的一些激活，而它们随序列长度线性增长。来看看上下文并行（CP）如何帮到我们：</p>
+<!-- <iframe class="l-body-outset" id="plotFrame9" src="assets/data/benchmarks/cp_8Bmemoryusage.html" width="90%" scrolling="no" frameborder="0"></iframe> -->
+<div class="l-body-outset" id="fragment-cp_8Bmemoryusage"></div>
+<!-- <script>
+            window.addEventListener('load', function() {
+                const frame = document.getElementById('plotFrame9');
+                frame.style.height = frame.contentWindow.document.documentElement.scrollHeight + 'px';
+                frame.style.width = frame.contentWindow.document.documentElement.scrollWidth + 'px';
+            });
+        </script> -->
+<!-- <p><img alt="image.png" src="/assets/images/cp_memoryusage.svg" /></p> -->
+<p>上下文并行的核心思想与序列并行类似（即沿序列长度切分），但这一方法应用于我们已经在做张量并行的模块。因此我们会沿两个维度切分这些模块，从而也削弱序列长度的影响。讲完前面这些内容，你应该会觉得这个方法相当直观，但其中有个小把戏，别打瞌睡！</p>
+<p>使用上下文并行时，和序列并行一样，我们沿序列维度切分输入——但现在这种切分作用于整个模型，而不只是像之前 TP+SP 那样仅作用于模型的序列并行区域。</p>
+<!-- <p><img alt="cp_8Bmemoryusage.svg" src="/assets/images/cp_8Bmemoryusage.svg" /></p>
+ -->
+<p>切分序列不会影响大多数模块，例如 MLP 和 LayerNorm，因为每个 token 都是独立处理的。它也不需要像 TP 那样昂贵的通信，因为只有输入被切分，权重矩阵并未切分。与数据并行一样，计算完梯度后会发起一次全规约操作，以在 CP 组内同步梯度。</p>
+<p>不过有一个重要的例外：我们需要特别关注注意力模块（哈哈……这里是有意玩的双关 :D）。在注意力模块中，每个 token 都需要访问<strong>所有</strong>其他序列 token 的键/值对（或者，在因果注意力的情况下，至少要关注到每个之前的 token）。</p>
+<p>由于上下文并行沿序列维度把输入切分到各块 GPU 上，注意力模块需要 GPU 之间进行完整的通信，以交换所需的键/值数据。</p>
+<p>如果朴素地实现，这听起来代价非常高。有没有办法做得更便宜、更快？所幸，有一项核心技术能让我们高效地处理键/值对的这种通信：<em><strong>环形注意力（Ring Attention）</strong></em>。</p>
+<div class="note-box">
+<p class="note-box-title">📝 Note</p>
+<div class="note-box-content">
+<p>上下文并行在概念上与 FlashAttention 有一些相似之处，后者我们会在本书后面介绍——两种技术都依赖在线 softmax 计算来降低显存占用。但 FlashAttention 侧重于优化单块 GPU 上注意力计算本身，而上下文并行则通过把序列分布到多块 GPU 上来降低显存占用。</p>
+</div>
+</div>
+<a id="ring_attention"></a><h3 id="ring_attention">环形注意力</h3>
+<p>在这种注意力机制的实现中，每块 GPU 先发起一个异步通信操作，把自己的键/值对发送给其他 GPU。在等待其他 GPU 数据的同时，它针对已经存在于显存中的那部分数据计算注意力分数。理想情况下，下一组键/值对会在这次计算结束之前从另一块 GPU 到达，使该 GPU 一结束第一次计算就能立刻开始下一轮计算。</p>
+<p>下面用图示来说明。假设我们有四块 GPU 和一个包含四个 token 的输入。初始时，输入序列沿序列维度被均匀切分，因此每块 GPU 只会分到一个 token 及其对应的 Q/K/V 值。设 Q1、K1 和 V1 表示第一个 token 的 query、key 和 value，它们位于第一块 GPU 上。注意力计算需要四个时间步才能完成。在每个时间步，每块 GPU 依次执行以下三个操作：</p>
+<ol>
+<li>以非阻塞方式把当前的键和值发送给下一台机器（最后一个时间步除外），这样我们就能在这一操作完成之前开始下一个操作。</li>
+<li>在本地基于当前的键和值计算注意力分数，这通常涉及执行 <d-math>Softmax(\frac{QK^T}{\sqrt{d}}) * V</d-math>。</li>
+<li>等待接收来自前一块 GPU 的键和值，然后回到第 1 步，此时当前的键和值就是刚刚收到的键/值。</li>
+</ol>
+<p>我们把这 3 个步骤执行四次，从而完成注意力计算。</p>
+<p>四块 GPU 上的整个过程如下面的动画所示：</p>
+<p><img alt="ring-attention.gif" src="/assets/images/ring-attention.gif"/></p>
+<p>从这个动画里，你大概一眼就能看出作者为什么把这种方法称为环形注意力<d-cite bibtex-key="liu2023ringattentionblockwisetransformers"></d-cite>！</p>
+<p>不过这里有一个大问题：由于因果注意力矩阵的形状，朴素地实现环形注意力会导致 GPU 之间出现严重的不均衡。我们来看看 softmax 计算，考虑带因果注意力掩码的注意力分数矩阵：</p>
+<p><img alt="cp_attnmask.svg" src="/assets/images/cp_attnmask.svg"/></p>
+<p>softmax 是按行计算的，这意味着只要某块 GPU 收齐了某一行的全部 token，这一行就能计算。可以看到，GPU 1 可以立刻算出结果，因为它一开始就持有 token 1-4，不需要从任何其他 GPU 接收信息。而 GPU 2 要等到第二轮才能收到 token 1-4，从而凑齐 token 1-8 的全部数值。GPU 1 所做的工作似乎也远少于其他所有 GPU。</p>
+<p>我们来看看能否让计算更均衡。</p>
+<a id="zig-zag_ring_attention_–_a_balanced_compute_implementation"></a><h3 id="zig-zag_ring_attention_–_a_balanced_compute_implementation">锯齿环形注意力——一种计算均衡的实现</h3>
+<p>我们需要一种更好的输入序列分配方式。做法是不再按纯粹的先后顺序把 token 分配给各块 GPU，而是把顺序稍作打乱，使每块 GPU 上都混有靠前和靠后的 token。这种方法称为锯齿注意力（Zig-Zag Attention）。在这种新排布下，注意力掩码会呈现出均匀的计算分布；而如果你数一数彩色方块的数量，就会发现此时计算在所有 GPU 之间已经均衡了。</p>
+<aside>
+<p>这里展示的是锯齿注意力，它与 Striped Attention<d-cite bibtex-key="brandon2023fasterring"></d-cite> 略有不同。关于两者的差异细节，可以查看<a href="https://github.com/zhuzilin/ring-flash-attention/issues/2#issuecomment-2236746166">这个 GitHub 讨论</a>。</p>
+</aside>
+<p><img alt="cp_zigzagmask.svg" src="/assets/images/cp_zigzagmask.svg"/></p>
+<p>你还会看到，为了算完所有行，每块 GPU 都需要来自其他所有 GPU 的信息。</p>
+<p>重叠计算与通信一般有两种方式：要么执行一次通用的全收集，像 ZeRO-3 那样把所有键和值同时重新聚集到每块 GPU 上；要么按需从各块 GPU 收集到各块 GPU 上。</p>
+<!-- RH: In these figures, change "AllGather Activs" and "P2P Activs" to "All-gather activs" and "P2P activs" (or should that be "All-to-all activs")? -->
+<p><img alt="cp_overlap_allgather.svg" src="/assets/images/cp_overlap_allgather.svg"/></p>
+<p><img alt="cp_overlap_all2all.svg" src="/assets/images/cp_overlap_all2all.svg"/></p>
+<p>这两种实现的关键差异在于它们的通信模式和显存占用：</p>
+<p><strong>1. 全收集实现：</strong></p>
+<ul>
+<li>所有 GPU 同时从其他所有 GPU 处收集完整的键/值对。</li>
+<li>需要更多临时显存，因为每块 GPU 都要一次性存下所有 K/V 对。</li>
+<li>通信一步完成，但显存开销更大。</li>
+</ul>
+<p><strong>2. 全对全通信（环形）实现：</strong></p>
+<ul>
+<li>各块 GPU 以类似环的方式交换 K/V 对，一次交换一个分块。</li>
+<li>显存效率更高，因为每块 GPU 只需临时多存一个分块。</li>
+<li>通信被分散开来并与计算重叠，不过由于要经过多个通信步骤，会带来一些额外的基线延迟开销。</li>
+</ul>
+<p>全对全通信方案通常显存效率更好，代价是通信模式稍复杂一些；而全收集方案更简单，但在注意力计算期间需要更多临时显存。</p>
+<p>现在我们已经看到，可以用 TP 把模型切分到单个节点上来驯服大模型，也可以用 CP 来驯服长序列带来的激活显存爆炸。</p>
+<p>然而，我们仍然知道 TP 跨节点扩展的效果很差，那么当模型权重无法轻松放进单个节点时该怎么办？流水线并行——我们的第四种并行维度——来救场了！</p>
+<a id="pipeline_parallelism"></a><h2 id="pipeline_parallelism">流水线并行</h2>
+<div class="audio-container">
+<audio controls="">
+<source src="https://nanotron-ultrascale-playbook.static.hf.space/assets/audio/5D Parallelism_ Scaling Deep Learning Model Training Strategies.wav" type="audio/wav"/>
+                Your browser does not support the audio element.
+              </audio>
+<div class="figure-legend">
+<p>想为阅读体验增添一点播客的感觉，不妨在阅读时收听 NotebookLM 主持人讨论本书接下来几节的内容。</p>
+</div>
+</div>
+<p>在<a href="#tensor-parallelism" target="_self">“张量并行”</a>一节中，我们看到，一旦试图把张量并行扩展到超过单个节点上的 GPU 数量——通常是 4 块或 8 块——就不得不使用带宽更低的网络通信，这会显著损害性能。在我们的集群上跨多个节点（这里每个节点有 8 块 GPU）对全规约操作做基准测试时，可以清楚地看到这种节点间通信的影响：</p>
+<!-- <iframe class="l-body-outset" id="plotFrame11" src="assets/data/benchmarks/pp_comm_bandwidth.html" width="90%" scrolling="no" frameborder="0"></iframe> -->
+<div class="l-body-outset" id="fragment-pp_comm_bandwidth"></div>
+<!-- <script>
+            window.addEventListener('load', function() {
+                const frame = document.getElementById('plotFrame11');
+                frame.style.height = frame.contentWindow.document.documentElement.scrollHeight + 'px';
+                frame.style.width = frame.contentWindow.document.documentElement.scrollWidth + 'px';
+            });
+        </script> -->
+<!-- <p><img alt="pp_comm_bandwidth.svg" src="/assets/images/pp_comm_bandwidth.svg" /></p> -->
+<div class="figure-legend"><p>不同节点数下的节点间通信带宽测量，展示全规约、全收集和规约散射操作的中位数（实线）与第 5 至第 95 百分位区间（阴影区域）</p></div> <!-- RH: Should the figure and legend use all-reduce, all-gather, and reduce-scatter instead of AllReduce, AllGather, and ReduceScatter, to match the rest of the text? -->
+<p>序列并行和上下文并行对长序列有帮助，但如果显存问题的根源不是序列长度，而是模型本身的规模，它们就帮不上太多忙了。对于大模型（70B+ 参数），仅权重大小就可能已经突破单个节点上 4-8 块 GPU 的上限。我们可以通过召唤另一个并行维度来解决这个问题：<em>流水线并行</em>（PP）。</p>
+<p>流水线并行是一种简单却强大的技术——我们把模型的层切分到多张 GPU 上！举例来说，如果有 8 张 GPU，我们可以把第 1-4 层放在 GPU 1 上，把第 5-8 层放在 GPU 2 上，依此类推。这样一来，每张 GPU 只需要存储并处理模型的一部分层，从而显著降低每张 GPU 的显存需求。下面看看流水线并行在一个 8B 参数模型上的显存占用实际效果：</p>
+<aside>这项技术可能会让你想起我们讨论过的 <a href="#zero-redundancy-optimizer" target="_self">ZeRO-3</a>，在那里我们把模型参数切分到多张 GPU 上。我们会在后面的 <a href="#5d_parallelism_in_a_nutshell" target="_self">“5D 并行概览”</a>一节中详细比较这两种技术。</aside>
+<!-- <iframe class="l-body" id="plotFrame12" src="assets/data/benchmarks/pp_memoryusage.html" width="90%" scrolling="no" frameborder="0"></iframe> -->
+<div class="l-body" id="fragment-pp_memoryusage"></div>
+<!-- <script>
+            window.addEventListener('load', function() {
+                const frame = document.getElementById('plotFrame12');
+                frame.style.height = frame.contentWindow.document.documentElement.scrollHeight + 'px';
+                frame.style.width = frame.contentWindow.document.documentElement.scrollWidth + 'px';
+            });
+        </script> -->
+<!-- <p><img alt="pp_memoryusage.svg" src="/assets/images/pp_memoryusage.svg" /></p> -->
+<p>观察上图我们会发现一件有意思的事：模型参数确实被很好地切分到了各张 GPU 上，但每张 GPU 上的激活显存却保持不变！这意味着这种做法并没有节省任何激活显存。</p>
+<div class="note-box">
+<p class="note-box-title">📝 Note</p>
+<div class="note-box-content">
+<p>原因在于，每张 GPU 在开始第一次反向传播之前，需要先执行 PP 次前向传播。由于每张 GPU 只负责 1/PP 的层，却要在第一次反向之前处理 PP 个微批，它最终要存储的是 <d-math>PP \times (activs / PP) \approx activs</d-math>，也就是说激活显存需求与不使用流水线并行时大致相同。</p>
+</div>
+</div>
+<p>这引入了一种新的通信模式：我们不再像数据并行中的 ZeRO-3 那样通信参数，而是在一条“流水线”中按顺序在 GPU 之间传递激活张量。这个概念上很简单，但要高效地实现这项技术却相当棘手。下面我们就深入细节！</p>
+<a id="splitting_layers_on_various_nodes_-_all_forward,_all_backward"></a><h3 id="splitting_layers_on_various_nodes_-_all_forward,_all_backward">把层切分到各个节点上——全部前向、全部反向</h3>
+<p>首先，假设我们只是把层铺到多台设备上——例如第一张 GPU 负责最开始的几层，第二张 GPU 负责模型的第二部分，依此类推。此时模型的前向传播就变成沿着模型依次传递这批数据，从而依次使用每台计算设备。</p>
+<p>我们立刻得到一个直接的好处：所需的互连带宽相当低，因为我们只在模型深度方向上的少数几个位置发送中等大小的激活。与例如 TP 方案相比，这可能带来巨大的差异——在 TP 中，通信在每一层内部都要发生好几次。</p>
+<p>但你可能已经开始隐约察觉到即将到来的麻烦了：“依次”和“逐个”？！在并行计算的世界里，这听起来可不太高效，尤其是在我们讨论过计算与通信重叠之后。</p>
+<p>确实如此，读者！流水线并行面临的主要挑战就是：如何高效地绕开 PP 的串行本质，让我们的 GPU 始终保持忙碌，避免出现一张 GPU 在计算、其他 GPU 却在等待的情况。下图是我们对模型做一次朴素而简单的前向与反向传播时 GPU 的利用率情况（图中数字表示模型的层）：</p>
+<p><img alt="image.png" src="/assets/images/pp_afab.svg"/></p>
+<div class="figure-legend"><p>一个 16 层模型分布在 4 张 GPU 上的流水线并行示例。数字对应层的编号。</p>
+</div>
+<p>剩余的闲置时间用灰色表示，通常被称为“气泡”。在我们花了那么多时间优化吞吐之后，看到这幅图大概会让你心碎。</p>
+<p>我们可以通过考察因气泡而损失的时间来量化一个流水线方案的效率。假设 <d-math>t_f</d-math> 和 <d-math>t_b</d-math> 分别是对一个微批、一个流水线阶段测得的前向传播和反向传播时间（一个常见的简单假设是 <d-math>t_b \approx 2 \times t_f</d-math>，如上图所示）。如果能完美并行，理想的总时间应为 <d-math>t_{id}=t_f + t_b</d-math>。然而在这个例子中，由于流水线气泡，还需要额外的 <d-math>t_{pb}=(p-1)*(t_f+t_b)</d-math> 时间（其中 <d-math>p</d-math> 是流水线并行度，即 GPU 的数量）。这就是每张 GPU 在其他 GPU 计算时等待的时间。</p>
+<p>我们可以计算额外气泡时间与理想时间的比值，如下所示：
+        </p>
+<d-math block="">
+            r_{bubble} = \frac{(p-1)*(t_f+t_b)}{t_f+t_b} = p-1
+        </d-math>
+<p>因此，随着阶段数增加，气泡时间会变长，利用率会下降。可以看到，在朴素实现中气泡可能非常大！</p>
+<p>所幸，人们已经设计出多种流水线并行方案来缩小气泡。</p>
+<p>让我们从工具箱里拿出第一件工具，考虑把批次切成更小的、可（几乎）并行处理的碎块，就像我们之前在 DP 方案中所做的那样。现在，当第二张 GPU 忙于处理微批 1 时，第一张 GPU 已经可以开始处理微批 2 了。下图是使用八个微批的调度：</p>
+<p><img alt="pp_afab2.svg" src="/assets/images/pp_afab2.svg"/></p>
+<aside>之前图中的数字表示层，但从现在起，所有流水线并行图中它们都表示微批。你可以把这里的每个方块看作包含若干层，如上一张图所示。</aside>
+<p>上面的调度称为 <strong><em>全部前向、全部反向（all forward, all backward，AFAB）</em></strong>调度，因为我们先执行所有前向传播，再执行所有反向传播。其优势在于前向和反向步骤在总体上仍然是顺序的，因此我们保留了模型训练代码的整体组织方式。这种 PP 实现是最容易实现的方案之一。</p>
+<p>你可以在 Picotron 中找到 AFAB 流水线的完整实现：</p>
+<details style="background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; margin: 1em 0;">
+<summary style="padding: 12px; cursor: pointer; user-select: none; background: #f3f4f6; border-bottom: 1px solid #d0d7de;">                👉 Picotron 中的 AFAB PP 实现（点击展开）
+            </summary>
+<div class="code-embed-container" style="margin: 0; border-radius: 0; overflow-x: scroll; width: max-content; min-width: 100%; font-size: 8px;"></div>
+<script src="https://emgithub.com/embed-v2.js?target=https%3A%2F%2Fgithub.com%2Fhuggingface%2Fpicotron%2Fblob%2F0035cce0e04afd6192763b11efe50010d8ad0f71%2Fpicotron%2Fpipeline_parallel%2Fpipeline_parallel.py%23L54-L83&amp;style=github&amp;type=code&amp;showBorder=on&amp;showLineNumbers=on&amp;showFileMeta=on&amp;showFullPath=on&amp;showCopy=on"></script>
+
+</details>
+<p>我们来估算这个例子中的气泡。与第一个例子的区别在于，处理 <d-math>m</d-math> 个微批的理想时间现在是 <d-math>t_{id} = m*(t_f+t_b)</d-math>：</p>
+<d-math block="">
+            r_{bubble} = \frac{(p-1)*(t_f+t_b)}{m*(t_f+t_b)} = \frac{p-1}{m}
+        </d-math>
+<p>可以看到，增加微批数量可以抵消流水线阶段的部分低效，把气泡缩小为原来的 <d-math>m</d-math> 分之一。</p>
+<p>然而，和气泡同样恼人的是存储所有激活所需的显存。我们需要把所有激活都保留在显存中，直到进入反向阶段，这在这类 PP 实现中会迅速导致显存爆炸。我们能否做得更好，避开这个问题呢？</p>
+<p>既然显存爆炸是由我们为反向传播保存的激活引发的，那就看看能否在仍在执行前向计算时就开始执行反向传播。这样我们就能尽快释放反向传播所需的部分激活。</p>
+<a id="one_forward,_one_backward_and_llama_3.1_schemes"></a><h3 id="one_forward,_one_backward_and_llama_3.1_schemes">一前一后与 Llama 3.1 方案</h3>
+<p>这种调度称为 <strong><em>一前一后（one forward, one backward，1F1B）</em></strong>，因为中间/稳态阶段是交替执行一次前向和一次反向传播。总体思路是尽早开始执行反向传播。调度如下所示：</p>
+<p><img alt="image.png" src="/assets/images/pp_1f1b.svg"/></p>
+<p>如果你仔细数一数，会发现气泡的大小依然不变，所以我们的训练效率并没有显著提升。不过，我们只需要为 <d-math>p</d-math> 个微批保存激活（其中 <d-math>p</d-math> 是流水线并行度），而不是为 <d-math>m</d-math> 个微批保存（其中 <d-math>m</d-math> 是微批的数量），这可以缓解 AFAB 调度中出现的激活显存爆炸。因此，我们可以增加更多微批，而这实际上又会缩小气泡。</p>
+<p>这一设置的一大复杂之处（如上图所示）在于：前向传播与反向传播不再清晰地串行进行，而是跨设备并行执行、彼此交错。这意味着我们必须在每块设备上分别调度从前往后向反向传播的切换，而不再像通常那样在一个简单统一的中央训练循环中完成。</p>
+<p>这也是实现流水线并行通常需要对训练代码和建模代码做出相当大改动的原因之一。</p>
+<p>你也可以在 Picotron 中找到 1F1B 的完整实现：</p>
+<details style="background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; margin: 1em 0;">
+<summary style="padding: 12px; cursor: pointer; user-select: none; background: #f3f4f6; border-bottom: 1px solid #d0d7de;">                👉 Picotron 中的 1F1B PP 实现（点击展开）
+            </summary>
+<div class="code-embed-container" style="margin: 0; border-radius: 0; overflow-x: scroll; width: max-content; min-width: 100%; font-size: 8px;"></div>
+<script src="https://emgithub.com/embed-v2.js?target=https%3A%2F%2Fgithub.com%2Fhuggingface%2Fpicotron%2Fblob%2F0035cce0e04afd6192763b11efe50010d8ad0f71%2Fpicotron%2Fpipeline_parallel%2Fpipeline_parallel.py%23L85-L145&amp;style=github&amp;type=code&amp;showBorder=on&amp;showLineNumbers=on&amp;showFileMeta=on&amp;showFullPath=on&amp;showCopy=on"></script>
+
+</details>
+<p>下面我们结合集群上的一些基准测试，看看 1F1B 流水线并行调度在实践中如何扩展：</p>
+<!-- RH: In this figure, initial-cap "schedule" and change "Tokens/s/GPU" to "Tokens/sec/GPU" (x3, to match the 4th label and the other figures)? -->
+<p><img alt="Throughput scaling of pipeline parallelism with varying micro-batch sizes" src="/assets/images/pp_1f1b_scaling.png"/></p>
+<p>左图中，当微批数量等于或小于 PP 并行度减一（<d-math>m = p - 1</d-math>）时，可以看到流水线气泡的危害有多大——性能很低，而且随着 PP 规模扩大甚至还会下降。右图则表明，使用远多于 PP 并行度的微批（<d-math>m = 32 \gg p - 1</d-math>）有助于改善低 PP 并行度下的性能，但在非常大的 PP 并行度下依然受限。实践中，我们无法为了维持 <d-math>m \gg p - 1</d-math> 的比例而任意增加微批数量，因为最终会受限于目标全局批大小。当我们在增加 PP 并行度的同时把微批数量取到最大可能值时，最终仍必须按 <d-math>r_{bubble} = \frac{p - 1}{m}</d-math> 增大气泡。</p>
+<p>有趣的是，在微批数量较少时，从单节点（<d-math>p = 8</d-math>）扩展到两个节点（<d-math>p = 16</d-math>）性能只下降 14%——这比张量并行的扩展效果好得多，后者在类似的跨节点场景中通常会出现约 43% 的性能退化。这种在带宽较低的节点间网络上的表现，使流水线并行对跨多节点的分布式训练格外有吸引力。</p>
+<p>1F1B 显著降低了激活显存占用，但从最后这张图可以看到，流水线气泡仍然是主要的效率瓶颈。气泡大小仍与流水线阶段数成正比，我们让宝贵的 GPU 算力白白闲置。能否设计一种更聪明的调度，把这段浪费的计算时间降到最低？</p>
+<a id="interleaving_stages"></a><h3 id="interleaving_stages">交错阶段</h3>
+<p>1F1B 调度让我们改善了显存使用，但对空闲气泡的大小没有太大影响。有没有办法把这条边界再往前推？</p>
+<p>事实证明，只要我们愿意引入一些额外的通信操作，这是可以做到的。是时候聊聊<strong><em>交错阶段</em></strong>了！</p>
+<p>到目前为止，我们都是沿模型深度维度朴素地切分模型，比如把第 1-4 层放在第一块 GPU 上、第 5-8 层放在第二块 GPU 上。但切分层的方式还可以有其他思路，例如把奇数层（1、3、5、7）放在第一块 GPU 上，把偶数层（2、4、6、8）放在第二块 GPU 上。</p>
+<p>这大体上可以看作一种“循环流水线”：一个微批在前向传播穿过模型的过程中，会一圈圈地从一块 GPU 移到下一块 GPU。我们来看看它是怎么工作的：</p>
+<p><img alt="pp_1f1b_interleaved.svg" src="/assets/images/pp_1f1b_interleaved.svg"/></p>
+<div class="figure-legend"><p>一个交错流水线并行的示例：模型的各层分布在 4 块 GPU 上。数字仍然对应微批 ID，但为清楚起见，我们把模型的首层和末层涂成不同颜色，以说明各层是如何分散到 GPU 上的。</p>
+</div>
+<p>这里需要额外的通信，因为对同一份计算，模型现在要多次经过每块 GPU，而此前只需一遍。不过，由于我们能更好地交错前向和反向传播，每次前向传播和反向传播都被除以一个因子 <d-math>v</d-math>，其中 <d-math>v</d-math> 是每块 GPU 上的阶段数或模型块数：</p>
+<d-math block="">
+            \begin{aligned}
+            &amp;t_{pb} = \frac{(p-1)*(t_f+t_b)}{v} \\
+            &amp;r_{bubble} = \frac{1}{v}\frac{(p-1)*(t_f+t_b)}{m*(t_f+t_b)} = \frac{p-1}{v*m} 
+            \end{aligned}
+        </d-math>
+<p>因此，现在我们可以通过增加微批和交错阶段来减小气泡——但要注意，从数量上看，通信量也会增加 <d-math>v</d-math> 倍，所以这是一个权衡。下图中给出了 <d-math>p=8</d-math> 的 PP 设置的几种配置：其中 <d-math>m=1, v=1</d-math> 的特殊情况对应朴素流水线并行，<d-math>v=1</d-math> 的配置是 AFAB 或 1F1B 方案，而 <d-math>v \neq 1</d-math> 的情况则是交错配置。</p>
+<!-- <iframe class="l-body" id="plotFrame23" src="assets/data/benchmarks/pp_bubblesize.html" width="90%" scrolling="no" frameborder="0"></iframe> -->
+<div class="l-body" id="fragment-pp_bubblesize"></div>
+<!-- <script>
+            window.addEventListener('load', function() {
+                const frame = document.getElementById('plotFrame23');
+                frame.style.height = frame.contentWindow.document.documentElement.scrollHeight + 'px';
+                frame.style.width = frame.contentWindow.document.documentElement.scrollWidth + 'px';
+            });
+        </script> -->
+<!-- <p><img alt="pp_bubblesize.png" src="/assets/images/pp_bubblesize.png" /></p> -->
+<p>在这里，调度也变得更复杂：在给定 GPU 和给定时刻，我们必须决定是优先处理正在经过较后层的较早微批——也就是尽快闭合前向和反向的循环（“深度优先”方式，优先让批尽快流出模型）——还是优先处理正在经过较前层的较晚微批（“广度优先”方式，优先尽可能填满流水线）。这一选择在“Breadth-Fist Pipeline Parallelism”论文中有详细说明<d-cite bibtex-key="lamypoirier2023breadthfirstpipelineparallelism"></d-cite>。</p>
+<p>现在你已经掌握了理解 Llama 3.1 中流水线并行方案所需的全部要素：它采用带交错阶段的 1F1B 方案，并且可以在深度优先与广度优先之间调节优先级设置：</p>
+<p><img alt="pp_llama3.1_schedule.png" src="/assets/images/pp_llama3.1_schedule.png"/></p>
+<p>不过，可能的流水线调度还没有穷尽，最近已有一些方法被提出来，能把气泡<strong>降到几乎为零</strong>！例如 DeepSeek-V3/R1 的实现就使用了这些技术<d-cite bibtex-key="deepseekai2024deepseekv3technicalreport"></d-cite>。感兴趣了吗？在离开流水线并行的世界之前，我们最后快速看一看这些神奇的调度！</p>
+<a id="zero_bubble_and_dualpipe"></a><h3 id="zero_bubble_and_dualpipe">零气泡与 DualPipe</h3>
+<p>最近还提出了更精巧的减小气泡的方法，可以达到接近“零气泡”的状态，例如 DeepSeek-V3/R1 中名为 DualPipe 的流水线实现方案。其秘诀在于把涉及的操作拆分到更细的粒度，以便以最高效的方式将它们交错起来。</p>
+<aside>在 DeepSeek-V3 技术报告<d-cite bibtex-key="deepseekai2024deepseekv3technicalreport"></d-cite>中，作者指出他们的方案实现了“接近零的全对全通信开销”。</aside>
+<p>我们简要看看它是如何做到的，为此先概述 Sea AI Lab 的零气泡工作<d-cite bibtex-key="qi2023zerobubblepipelineparallelism"></d-cite>，它正是 DualPipe 的前身。其基本观察是：矩阵乘法的反向传播实际上包含两个独立操作：针对输入的反向操作（<d-math>B</d-math>）和针对权重的反向操作（<d-math>W</d-math>）。</p>
+<p>输入的反向传播 <d-math>B</d-math> 的输出，是执行更下层反向传播所必需的；而权重的反向传播 <d-math>W</d-math> 则不然，它通常只需在优化器更新之前完成即可。这一点可以在下图（来自 Zero Bubble 论文）中看到：</p>
+<p><img alt="image.png" src="/assets/images/pp_zerobubble_compgraph.png"/></p>
+<p>这意味着 <d-math>W</d-math> 可以灵活地调度到同一阶段中相应 <d-math>B</d-math> 之后的任意位置。这样就可以策略性地放置 <d-math>W</d-math> 来填补流水线气泡。右上角的 ZB-H2 调度，就是一个利用这种细粒度拆分的（理论上的）零气泡调度示例。</p>
+<p><img alt="image.png" src="/assets/images/pp_zerobubble_ppschedule.png"/></p>
+<div class="figure-legend"><p>上图（Zero Bubble 论文的图 2）：经典的 1F1B 调度，将前向和反向传播交错进行，但反向传播保持粗粒度。下图（Zero Bubble 论文的图 3）：两种手工设计的调度，把反向传播拆分为更细粒度的 <d-math>B</d-math> 和 <d-math>W</d-math> 操作。下面那个调度是一个利用这种细粒度拆分的（理论上的）零气泡调度示例。</p>
+</div>
+<p>随 V3 技术报告 <d-cite bibtex-key="deepseekai2024deepseekv3technicalreport"></d-cite> 一同提出的 DeepSeek DualPipe，是这种分解方法的一项扩展，它额外处理了从 PP 维度两端推进的两条流，并让这两条流交错执行，以进一步压缩 GPU 的空闲时间。该调度方案如下图所示——如你所见，它比前面的调度图还要复杂：</p>
+<p><img alt="image.png" src="/assets/images/pp_zerobubble_dualpipe.png"/></p>
+<p>一般来说，要完全优化这类复杂调度，需要仔细测量各种细粒度操作的持续时间，并求解一个整数线性规划（ILP）问题，以最小化最终的气泡时间。（例如，关于此类调度所采用的启发式方法与算法，可参阅 Zero Bubble 论文<d-cite bibtex-key="qi2023zerobubblepipelineparallelism"></d-cite>中的讨论。）因此，零气泡和 DualPipe 调度过于复杂，我们无法在此给出代码片段，但你应该对其中涉及的概念有了大致了解。</p>
+<p>我们对流水线调度与气泡世界的巡览到此结束。希望你喜欢这段旅程！</p>
+<p>现在该转向我们要详细讨论的最后一种并行方法了，借助它我们可以高效地训练大模型：<strong><em>专家并行</em></strong>。</p>
+<a id="expert_parallelism"></a><h2 id="expert_parallelism">专家并行</h2>
+<p>这是我们要讨论的最后一种并行方法。在正式讨论之前，如果你对混合专家（MoE）模型毫无了解，不妨花点时间读一读我们前段时间发布的<a href="https://huggingface.co/blog/moe">这篇短得多的博客文章</a>，它应该能帮助你更好地理解 MoE 架构的整体思路。</p>
+<p>近年来，随着 GPT-4、Mixtral<d-cite bibtex-key="jiang2024mixtralexperts"></d-cite> 和 DeepSeek-V3/R1 等模型的出现，混合专家范式获得了越来越多的关注与曝光。其基本思想是：每一层不再只有一个前馈模块，而是可以有若干个并行的模块，并通过路由让 token 经过它们接受不同的处理。</p>
+<p><img alt="ep_moe.png" src="/assets/images/ep_moe.png"/></p>
+<div class="figure-legend"><p>取自 Switch Transformers 论文<d-cite bibtex-key="fedus2022switchtransformersscalingtrillion"></d-cite>的 MoE 层示意图</p>
+</div>
+<p>MoE 层的设计使得在专家维度上实现并行变得很容易，我们称之为<em>专家并行（EP）</em>。由于各前馈层完全独立，我们只需把每个专家的前馈层放到不同的 worker 上即可。与 TP 相比，这种做法要轻量得多，因为我们不需要切分矩阵乘法，只需要把 token 的隐藏状态路由到正确的专家。</p>
+<p>在实践中，EP 通常与其他并行形式（例如数据并行）结合使用。这是因为 EP 只影响 MoE 层，并不会切分输入 token（这与上下文并行不同，后者沿序列长度维度切分 token）。这意味着，如果只使用 EP，我们的 GPU 会在所有非 MoE 模块上做冗余计算。通过把 EP 与 DP 结合，我们可以在 GPU 之间高效地同时切分专家和输入批次，如下图所示（简化示意）：</p>
+<p><img alt="ep_schema.png" src="/assets/images/ep_schema.png"/></p>
+<div class="figure-legend"><p>来源：“A Survey on Mixture of Experts”<d-cite bibtex-key="cai2024surveymixtureexperts"></d-cite> </p>
+</div>
+<p>但先别急着往下想——我们会在下一节讨论不同并行策略之间的各种相互作用，所以如果还看不懂最后这张图，也不必担心。</p>
+<p>在实践中，要让 EP 高效工作还有一些技巧，它们与模型设计紧密相关。例如，DeepSeek-V3 在路由器中施加了一项约束，确保每个 token 最多被发送到 <d-math>M</d-math> 个节点（在他们的设定中为 4 个），从而让 token 留在单个节点上并减少通信开销。专家并行已经存在了一段时间<d-cite bibtex-key="lepikhin2020gshardscalinggiantmodels"></d-cite>，但随着 MoE 架构日益流行，它才刚刚重新获得关注。</p>
+<p>我们计划很快在 Picotron/Nanotron 中加入一个更完整的 EP 示例，敬请期待更多内容！</p>
+<a id="5d_parallelism_in_a_nutshell"></a><h2 id="5d_parallelism_in_a_nutshell">5D 并行速览</h2>
+<p>恭喜你，读者！现在你已经见识了可用来扩展模型训练的全部五种并行策略：</p>
+<ol>
+<li>数据并行（DP）——沿批维度</li>
+<li>张量并行（TP）——沿隐藏维度</li>
+<li>序列并行与上下文并行（SP/CP）——沿序列维度</li>
+<li>流水线并行（PP）——沿模型层</li>
+<li>专家并行（EP）——沿模型专家</li>
+</ol>
+<p>以及与数据并行结合以降低显存的三种 ZeRO 策略：</p>
+<ol>
+<li>ZeRO-1——在 DP 副本之间切分优化器状态</li>
+<li>ZeRO-2——在 DP 副本之间切分优化器状态和梯度</li>
+<li>ZeRO-3——在 DP 副本之间切分优化器状态、梯度和参数</li>
+</ol>
+<p>到了这一步，你可能好奇的一点是：这些并行策略和 ZeRO 策略之间如何比较、又如何相互作用。换句话说，哪些可以一起使用并高效组合，哪些则应该保持分开？</p>
+<p>我们来看看它们的相似之处与相互作用。先从并列比较流水线并行和 ZeRO-3 开始，因为二者有非常接近的相似点，但也存在重要差异。</p>
+<p><strong>流水线并行</strong>与 <strong>ZeRO-3</strong> 都是把模型权重切分到多块 GPU 上、并沿模型深度轴进行通信/计算的方法（例如在 ZeRO-3 中，我们在计算的同时预取下一层）。这意味着两种情况下每台设备上计算的都是完整的层操作，这与 TP 或 EP 等不同——后者的计算是在子层单元上进行的。</p>
+<p>不过，PP 与 ZeRO-3 这两种方法之间存在几个主要差异：</p>
+<aside>这里说“一层”是为了简化，但模型实际的分片单元可能不同——它可以是多层、单层，甚至一层的一部分，具体取决于实现。</aside>
+<div class="l-body">
+<table>
+<thead>
+<tr>
+<th> </th>
+<th><strong>ZeRO-3</strong></th>
+<th><strong>流水线并行</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>每个计算单元存储……</td>
+<td>仅一层的一部分</td>
+<td>完整的一层</td>
+</tr>
+<tr>
+<td>通信用于传输……</td>
+<td>weights</td>
+<td>activations</td>
+</tr>
+<tr>
+<td>Orchestration</td>
+<td>Model-agnostic</td>
+<td>Model-agnostic</td>
+</tr>
+<tr>
+<td>实现挑战</td>
+<td>处理模型切分与通信较为复杂</td>
+<td>处理高效的 PP 调度较为复杂</td>
+</tr>
+<tr>
+<td>扩展方面的考量</td>
+<td>偏好较大的 <d-math>mbs</d-math> 和 <d-math>seq\_len</d-math> 以隐藏通信</td>
+<td>偏好较大的 <d-math>grad\_acc</d-math> 以隐藏气泡</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>如你所见，ZeRO-3 与 PP 解决的是同一个难题，但采用了不同的方法，二者之间的取舍取决于你决定把通信集中在传输权重上，还是传输激活上。虽然它们可以组合使用，但实践中并不常这么做，因为这样做需要显著增大全局批大小来摊薄通信开销，从而在全局批大小、模型规模、网络带宽和训练效率之间形成一种权衡。如果你决定组合使用，应把 ZeRO-3 配置为在一系列 PP 微批期间将权重保留在显存中，以尽可能减少不必要的通信开销。</p>
+<p>另一方面，专注于优化器状态和梯度的 ZeRO-1 与 ZeRO-2 可以轻松地与流水线并行组合，并且与之互补。这些组合不会带来任何特别的新挑战。例如，DeepSeek-v3 的训练就采用了 PP 与 ZeRO-1 的组合。</p>
+<p><strong>张量并行</strong>（配合<strong>序列并行</strong>）天然与流水线并行和 ZeRO-3 互补，并可与二者组合使用，因为它依赖矩阵乘法的分配律，使得权重和激活可以被切分、独立计算后再合并。</p>
+<div class="large-image-background-transparent">
+<div class="boxed-image">
+<img alt="TP &amp; SP diagram" src="/assets/images/5d_nutshell_tp_sp.svg" style="width: 1200px; max-width: none;"/>
+</div>
+</div>
+<p>我们不想只用 TP 做并行的主要原因在于，实践中 TP 有两个局限（前几节已经讨论过）。首先，它的通信操作处在计算的关键路径上，因此很难扩展到某个点之后——越过该点，通信开销就开始占据主导。其次，不同于与模型无关的 ZeRO 和 PP，TP 需要小心处理激活分片——有时沿隐藏维度切分（在 TP 区域内），有时沿序列维度切分（在 SP 区域内）——这使得正确实现更为繁琐，并且需要模型特定的知识来保证整个过程中分片模式正确。</p>
+<p>因此，在组合各种并行策略时，TP 通常保留给节点内的高速通信，而 ZeRO-3 或 PP 可以用于跨越节点间较低速通信的并行组，因为它们的通信模式所需带宽更少（对 PP 而言），或者更容易与计算重叠（对 ZeRO-3 而言）。组合这些技术时的主要考虑是：针对每个并行维度高效地组织 GPU 分组，以最大化吞吐并最小化通信开销，同时留意 TP 的扩展局限。例如，为 TP 通信的 GPU 组应当保持在节点内部。</p>
+<p><strong>上下文并行</strong>和<strong>专家并行</strong>同样帮助我们对激活进行分片，可以看作 TP 的补充。CP 处理长序列，而 EP 使分布式混合专家训练成为可能，两者可以毫无特别问题地组合使用。</p>
+<p>CP 专门针对训练超长序列的挑战，它沿序列维度把激活分片到各块 GPU 上。虽然大多数模块（如 MLP 和 LayerNorm）可以独立处理这些分片后的序列，但注意力模块需要通信，因为每个 token 都需要访问完整序列的键/值。正如我们在<a href="#context_parallelism" target="_self">CP 一节</a>中看到的，这通过环形注意力模式高效处理，使计算与通信重叠。当扩展到极端序列长度（128k+ token）时，CP 尤其有价值——此时即使使用完全激活重计算，注意力所需的显存在一块 GPU 上也难以承受。</p>
+<div class="large-image-background-transparent">
+<div class="boxed-image">
+<img alt="CP diagram" src="/assets/images/5d_nutshell_cp.svg" style="width: 1200px; max-width: none;"/>
+</div>
+</div>
+<p><strong>专家并行</strong>专门针对 MoE 模型的训练挑战，它把专门的“专家”分片到各块 GPU 上，并在计算过程中动态地把 token 路由到相关专家。EP 中的关键通信操作是“全对全”操作：把 token 路由到分配给它们的专家，再把结果收集回来。虽然这引入了一些通信开销，但它能显著扩展模型容量，因为每个 token 在推理（以及训练）中只由总参数中很小的一部分处理。就分布式训练/推理而言，当模型扩展到大量专家时，把专家划分到多块 GPU 上就变得重要了。</p>
+<aside>例如，DeepSeek-V3 使用了 256 个专家。</aside>
+<div class="large-image-background-transparent">
+<div class="boxed-image">
+<img alt="EP diagram" src="/assets/images/5d_nutshell_ep.svg" style="width: 1200px; max-width: none;"/>
+</div>
+</div>
+<div class="note-box">
+<p class="note-box-title">📝 Note</p>
+<div class="note-box-content">
+<p>EP 与 DP 在处理输入方面的这种相似性，正是某些实现把专家并行视为数据并行的一个子集的原因；关键区别在于 EP 使用专门的专家路由，而不是让所有 GPU 都通过相同的模型副本处理输入。</p>
+</div>
+</div>
+<a id="scope_and_focus"></a><h3 id="scope_and_focus">范围与重点</h3>
+<p>我们再快速总结一下这些不同并行策略影响最大的模型子部分：</p>
+<ul>
+<li>张量并行（以及序列并行）通过同时切分权重和激活，影响整个模型中的计算。</li>
+<li>上下文并行主要影响注意力层，因为跨序列通信正是在那里发生，而其他层则在分片后的序列上独立运行。</li>
+<li>专家并行主要影响 MoE 层（它们取代了标准 MLP 模块），注意力层和其他组件保持不变。</li>
+<li>流水线并行和 ZeRO 并不特别针对任何子模块或组件，唯一例外是流水线并行中模块和层需要保持均衡（由于额外的嵌入层，首层和末层往往被区别对待）。</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th><strong>张量 + 序列并行</strong></th>
+<th><strong>上下文并行</strong></th>
+<th><strong>专家并行</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>沿隐藏维度/序列维度切分权重和激活</td>
+<td>沿序列维度切分激活</td>
+<td>切分专门的专家权重和激活</td>
+</tr>
+<tr>
+<td>为矩阵乘法运算（列线性/行线性）而通信</td>
+<td>为注意力的键/值而通信</td>
+<td>为 token 到专家的路由而通信</td>
+</tr>
+<tr>
+<td>需要模型特定的实现</td>
+<td>除注意力外与模型无关</td>
+<td>除 MoE 层外与模型无关</td>
+</tr>
+<tr>
+<td>偏好节点内高带宽通信</td>
+<td>偏好长序列长度</td>
+<td>需要 MoE 层</td>
+</tr>
+</tbody>
+</table>
+<a id="summarizing_it_all"></a><h3 id="summarizing_it_all">把一切汇总起来</h3>
+<p>那么，如果把我们已经看到的全部技术都汇集到一张图里呢？是的，我们接受这个挑战！</p>
+<p>在这张汇总图中，你会看到单个 Transformer 层（MoE 变体）的激活和模块图示。我们还画出了并行的各个方向，以及前几节一直在讨论的那些通信操作。</p>
+<!-- RH: OK that this figure uses FSDP and not ZeRO-3? If you happen to be editing it, I'd also use "All-gather" instead of "AllGather". -->
+<div class="large-image-background-transparent">
+<div class="boxed-image">
+<p><img alt="image.png" src="/assets/images/5d_full.svg" style="width: 1200px; max-width: none;"/></p>
+</div>
+</div>
+<p>我们还可以给出每种策略节省显存的<strong>完整概览</strong>。我们会按不同序列长度作图，并分别给出选择性重计算（上）和完全重计算（下）的结果，好让你看到它们各自如何与激活相互作用：</p>
+<!-- RH: Zero-3 in this figure should be ZeRO-3 (x2). -->
+<div class="large-image-background-transparent">
+<div class="boxed-image">
+<img alt="5Dparallelism_8Bmemoryusage.svg" src="/assets/images/5Dparallelism_8Bmemoryusage.svg" style="width: 1200px; max-width: none;"/>
+</div>
+</div>
+<p>最后，我们用一张高层视图来结束本节，涵盖所有这些技术、它们的主要思路以及主要瓶颈：</p>
+<table>
+<thead>
+<tr>
+<th><strong>Method</strong></th>
+<th><strong>显存节省具体作用于……</strong></th>
+<th><strong>并行/分片维度</strong></th>
+<th><strong>Disadvantage</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DP</td>
+<td>激活（减小本地批大小）</td>
+<td>Batch</td>
+<td>受最大批大小限制</td>
+</tr>
+<tr>
+<td>PP</td>
+<td>模型参数</td>
+<td>模型层</td>
+<td>空闲气泡与复杂调度</td>
+</tr>
+<tr>
+<td>TP+SP</td>
+<td>模型参数与激活</td>
+<td>隐藏维度/序列长度</td>
+<td>需要高带宽通信</td>
+</tr>
+<tr>
+<td>CP</td>
+<td>Activations</td>
+<td>序列长度</td>
+<td>在注意力模块中增加通信开销</td>
+</tr>
+<tr>
+<td>EP</td>
+<td>专家参数</td>
+<td>专家维度</td>
+<td>需要 MoE 层，增加路由通信开销</td>
+</tr>
+<tr>
+<td>ZeRO-1</td>
+<td>优化器状态</td>
+<td>在 DP 副本之间分片</td>
+<td>参数通信开销</td>
+</tr>
+<tr>
+<td>ZeRO-2</td>
+<td>优化器状态与梯度</td>
+<td>在 DP 副本之间分片</td>
+<td>参数通信开销</td>
+</tr>
+<tr>
+<td>ZeRO-3</td>
+<td>优化器状态、梯度与模型参数</td>
+<td>在 DP 副本之间分片</td>
+<td>参数通信开销</td>
+</tr>
+</tbody>
+</table>
+<p>显然，这些技术中没有哪一个是能实现神奇扩展的银弹，我们往往必须以某种方式把它们组合起来。那么，我们能否真的总结出几条规则，帮助找到一个好的起点，用来在它们之间做选择（并加以组合）？这将是下一节的主题。</p>
+<a id="finding_the_best_training_configuration"></a><h2 id="finding_the_best_training_configuration">寻找最佳训练配置</h2>
+<p>至此，我们已经覆盖了所有实际用于分布式训练更大模型的并行技术，以及它们可以如何、为何能够组合在一起。但那个总体问题依然存在：我们应该选哪些，又该如何确定某种具体的组合？</p>
+<p>我们在上一节已经简单提到过这一点，现在来更详细地逐步走一遍可能的决策过程（请记住，你始终需要做几组实验，才能针对自己的计算集群、依据其各种物理属性、网络带宽、每节点 GPU 数、每块 GPU 的显存等，找到确定的最优配置）。</p>
+<a id="step_1:_fitting_a_training_step_in_memory"></a><h3 id="step_1:_fitting_a_training_step_in_memory">第 1 步：让一个训练步放进显存</h3>
+<p>首先，我们需要弄清楚如何把完整的一份模型实例放进 GPU。通常有两种情况：</p>
+<p><strong>1. GPU-rich case 🤑</strong> - when you have plenty of GPUs available:
+        <ul>
+<li>对于参数量低于 10B 的模型，你可以使用单一并行技术，例如张量并行，或在 8 块 GPU 上采用配合完全重计算的 ZeRO-3/DP。</li>
+<li>对于参数量在 10B–100B 之间、需要超过 8 块 GPU 的模型，你有几个选项：</li>
+<ul>
+<li>把张量并行（TP=8）与流水线并行组合</li>
+<li>把张量并行（TP=8）与数据并行（ZeRO-3）组合</li>
+<li>只使用 ZeRO-3（即纯数据并行）</li>
+</ul>
+<li>在 512+ GPU 的规模下，纯数据并行/ZeRO-3 会因通信成本开始变得低效——此时最好把 DP 与张量并行或流水线并行结合起来。</li>
+<li>在 1024+ GPU 规模下，推荐配置可以是张量并行（TP=8）配合数据并行（ZeRO-2）与流水线并行。</li>
+</ul>
+<aside>目前我们只关注装下单个实例——尽管我们可能用 DP 来实现 ZeRO 以达成这一目标——这里我们只关心它与 ZeRO-3 配合时带来的模型参数显存节省。</aside> <!-- RH: I'm having trouble working out what you're trying to say here. Maybe something like "We'll focus on fitting a single instance for now. Even though we may use DP to achieve this goal, we're only interested here in the model parameter memory savings that it provides when used with ZeRO-3."? --> <!-- NT: I'm in favor of removing as well -->
+</p>
+<p><em>Special considerations:</em>
+<ul>
+<li>对于非常长的序列，你可能需要在节点间加入上下文并行。</li>
+<li>对于混合专家架构，在节点间使用专家并行会更为有利。</li>
+</ul>
+</p>
+<p><strong>2. GPU-poor case 😭</strong> - when you might be low on GPU resources:
+        <ul>
+<li>你可以启用完全激活重计算，用一些算力换取显存（训练会稍慢一些）。</li>
+<li>你可以增大梯度累积，在有限显存下处理更大的批。</li>
+</ul>
+</p>
+<p>现在我们已经让第一个模型实例跑起来了，接下来要确保批大小合适。</p>
+<a id="step_2:_achieving_the_target_global_batch_size_"></a><h3 id="step_2:_achieving_the_target_global_batch_size_">第 2 步：达到目标全局批大小</h3>
+<p>取决于第 1 步结束时我们在微批大小和 DP 上处于什么位置，当前批大小可能太小，也可能太大。现在是时候达到目标批大小了。</p>
+<p>要增大当前的全局批大小：</p>
+<ul>
+<li>我们可以扩大数据并行，或增加梯度累积步数。</li>
+<li>对于长序列，我们可以利用上下文并行。</li>
+</ul>
+<p>要减小当前的全局批大小：</p>
+<ul>
+<li>我们可以减少数据并行，转而采用其他并行策略。</li>
+<li>对于长序列，我们可以减少上下文并行。</li>
+</ul>
+<p>好，现在模型已经按我们期望的大致配置运行起来了——模型规模和批大小都符合要求——但我们是在以最快的方式训练它吗？最后一步是优化吞吐。</p>
+<a id="step_3:_optimizing_training_throughput"></a><h3 id="step_3:_optimizing_training_throughput">第 3 步：优化训练吞吐</h3>
+<p>我们希望训练尽可能快，让我们宝贵的 GPU 始终得到充分利用。只要显存和通信不是瓶颈，就可以尝试以下做法：</p>
+<ul>
+<li>扩大张量并行（利用快速的节点内带宽），直到并行度接近节点规模，从而削减其他形式的并行。</li>
+<li>在保持目标批大小的同时，用 ZeRO-3 增大数据并行。</li>
+<li>当数据并行的通信开始成为瓶颈时，转向使用流水线并行。</li>
+<li>尝试逐一扩大不同的并行策略。</li>
+<li>试验不同的微批大小（<d-math>mbs</d-math>），力求在最大全局批大小、模型规模、算力与通信之间取得最优平衡。</li>
+</ul>
+<a id="benchmarking_thousands_of_configurations"></a><h3 id="benchmarking_thousands_of_configurations">对数千种配置做基准测试</h3>
+<p>既然我们已经逐步讲完了整个流程，接下来就在真实环境中实现这个搜索过程。</p>
+<p>在 <a href="https://github.com/huggingface/nanotron">Nanotron</a> 仓库中，你会找到几个脚本，可用它们运行前面讨论的所有实验，并对你自己的模型和集群做基准测试。</p>
+<p>我们自己实际在<strong>数千种分布式配置</strong>上运行了基准测试，覆盖了这里讨论的每一种模型规模，以及大量集群配置（即 1–64 个节点、每节点 8×H100），以此得到本书到目前为止呈现的这些结果。</p>
+<aside>我们想借此机会向同事们道歉，因为我们占用了大部分科研集群；同时也原谅那些可能被低声说出的威胁。</aside>
+<p>现在我们退后一步，汇总并分析所有基准测试的结果，看看在理论之外，我们能否用真实数据真正发现各种配置之间表现如何。</p>
+<p>以下所有基准测试均在序列长度 4,096、全局批大小 1M token 下进行。我们收集了每种模型规模与集群规模下的全部最优配置，并把它们绘制在下面的热力图中：</p>
+
+<div class="large-image-background-transparent">
+<div class="boxed-image">
+<p><img alt="image.png" src="/assets/images/what_we_learnt_heatmap.svg"/></p>
+</div>
+</div>
+<div class="figure-legend">
+<p>热力图可视化，展示不同模型规模与计算节点数量下的最优训练配置（每节点 8 块 GPU）。对每种组合，配置细节包括数据并行（DP）、张量并行（TP）、流水线并行（PP）、梯度累积步数（GAS）、微批大小（MBS）以及 ZeRO 优化阶段。颜色深浅表示模型 FLOPs 利用率（MFU），颜色越亮表示效率越高。</p>
+</div>
+<p>从这一高层可视化中，我们可以得出几点重要洞见：</p>
+<ul>
+<li>第一，随着我们增加节点数量（提高并行度），可以观察到效率下降。这一效应在较小的模型上尤为明显，因为它们的算力与模型规模之比较低。通常我们可以通过增大批大小来弥补模型规模偏小，但这里受制于 1M 的全局批大小上限。</li>
+<li>第二，较大的模型带来的是另一种挑战。随着模型规模增大，显存需求大幅增长。于是在节点较少时会出现两种情形：要么模型完全装不下，要么勉强装下，但由于运行在接近 GPU 显存上限的状态而效率低下（例如 80B 参数模型在 4 个节点上训练的情形）。</li>
+<li>最后，我们的基准测试表明，性能在很大程度上取决于实现质量。我们最初实现这两种并行策略时，张量并行优于流水线并行。在优化了 PP 代码之后，它成了更快的选项。如今我们正在改进 TP 实现中的通信重叠，预期它将重新夺回性能领先地位。</li>
+</ul>
+<a id="lessons_learned_on_benchmarking"></a><h3 id="lessons_learned_on_benchmarking">基准测试的经验教训</h3>
+<p>我们写这本书的目标不只是讨论理论与实现，还要提供真实的数据点。所以计划很简单：为每种模型和若干集群规模，运行所有可能的分布式配置。即使排除掉不可能成立的配置，我们仍需运行数千次实验。</p>
+<p>纸上谈兵，这听起来相当容易：我们可以在集群上轻松启动大批作业。然而，第一批实验刚一启动，麻烦就来了：</p>
+<ul>
+<li>PyTorch 进程有时无法正确清理。</li>
+<li>Slurm 作业管理器会强制终止作业，导致节点故障。</li>
+<li>本应只需几分钟的简单基准测试会拖成几个小时。</li>
+<li>有些作业会无限期挂起。</li>
+</ul>
+<p>要在有限时间内跑完所有实验，需要额外的工程投入，我们最终在下面这些事情上花了大量时间：</p>
+<ul>
+<li>缩短集群重启时间并优化空闲时间</li>
+<li>分析详细的 NCCL 调试日志</li>
+<li>理解显存使用模式与 CUDA 显存分配器的行为</li>
+<li>提升流水线并行在多节点环境下的性能</li>
+</ul>
+<p>这些挑战让我们对分布式训练基础设施的复杂性有了宝贵的认识。理论上看起来简单的事情，在实践中往往需要仔细照看许多相互牵连的环节。</p>
+<p>在现实中复现理论结果很有挑战性，尤其是考虑到生产级训练代码并不容易获得。通过 <a href="https://github.com/huggingface/nanotron" target="_blank">Nanotron</a> 和 <a href="https://github.com/huggingface/picotron" target="_blank">Picotron</a> 这样的开源项目，我们希望帮助分布式训练技术变得更易上手，并在简单高效的代码库上开展协作，帮助研究者和从业者充分利用他们的硬件资源。</p>
+<!-- <p>We can roughly summarize the journey to the best configuration in the following diagram:</p>
+
+        <p><img alt="image.png" src="/assets/images/placeholder.png" /></p>
+ -->
+<!-- <p>This concludes our very deep dive into 5D parallelism. However, besides scaling our model efficiently across GPUs there is another way to improve model throughput and memory management. It involves a better understanding of how GPU operate at a low level and is among the necessary knowledge to be able to take maximal advantage of large GPU clusters.</p> -->
+<hr/>
+<p>至此，我们对 5D 并行各种分布方法的深入探讨就结束了。</p>
+<p>退一步看，我们此前的讨论常常依赖一个关键假设：计算与通信可以在 GPU 上高效重叠，且完全不影响计算吞吐。现实要更微妙。使用 NCCL send/recv 这类常见通信原语时，我们会遇到计算与通信资源之间的隐蔽争用，因为通信内核通常会占用与计算相同的 GPU 流式多处理器（将在下一节讨论）。这导致通信与计算重叠时吞吐下降。要真正优化分布式训练，我们需要更深入地研究 GPU 架构本身。</p>
+<aside>此外，在计算与通信重叠时采用的同步模式，对我们的并行策略而言未必总是最优的。你可以在 PyTorch 团队撰写的<a href="https://discuss.pytorch.org/t/distributed-w-torchtitan-introducing-async-tensor-parallelism-in-pytorch/209487" target="_blank">这篇博客文章</a>中找到一个例子。</aside>
+<p>是时候关灯、进入 CUDA 模式了！</p>
+<a id="diving_into_the_gpus_–_fusing,_threading,_and_mixing"></a><h2 id="diving_into_the_gpus_–_fusing,_threading,_and_mixing">深入 GPU —— 融合、线程与混合</h2>
+<div class="audio-container">
+<audio controls="">
+<source src="https://nanotron-ultrascale-playbook.static.hf.space/assets/audio/GPU Deep Dive_ Optimizing Model Performance and Memory Efficiency.wav" type="audio/wav"/>
+                Your browser does not support the audio element.
+              </audio>
+<div class="figure-legend">
+<p>为了给你的阅读体验增添一点播客的感觉，你可以一边读，一边收听 NotebookLM 主持人讨论本书以下章节的内容。</p>
+</div>
+</div>
+<p>到目前为止，我们的讨论一直聚焦于模型运算在较高层面的组织方式。我们在各种加速器之间搬运计算，同时考虑整体的显存约束和计算单元的高层调度。</p>
+<p>但这忽略了我们本可以在低得多的层面上完成的所有优化——只要仔细理解模型运算在每块 GPU 上如何被调度和执行。</p>
+<p>本节将深入 GPU 架构的细节。我们会特别聚焦于 NVIDIA 的 GPU 架构，但正如常见的情形那样，这些总体思路也可以复用到类似的加速器上。</p>
+<p>我们会先简要说明 GPU 的组织方式，然后介绍 FlashAttention 带来的变革、如何高效地在 GPU 上调度工作负载，以及如何在 GPU 上高效使用各种精度。</p>
+<a id="a_primer_on_gpus"></a><h3 id="a_primer_on_gpus">GPU 入门</h3>
+<p>总体而言，GPU 的组织结构具有很强的层次性。在计算侧，一块 GPU 由一组称为<strong><em>流式多处理器（streaming multiprocessor，SM）</em></strong>的计算单元构成。每个 SM 包含并控制一组流式处理器，也就是<em>核心（core）</em>。例如，一块 NVIDIA H100 GPU 拥有 132 个 SM，每个 SM 有 128 个核心，总共 16,896 个核心（详见<a href="https://resources.nvidia.com/en-us-tensor-core">Tensor Core 的文档</a>），每个核心都能同时处理多个线程。</p>
+<aside> 在本入门介绍中，我们只把讨论保持在概念层面，这对我们后续的讲解来说已经足够。</aside>
+<p><img alt="image.png" src="/assets/images/diving_primergpu.svg"/></p>
+<div class="figure-legend"><p>来源：https://blog.codingconfessions.com/p/gpu-computing</p></div>
+<p>存储侧同样是高度分层的，包含多级缓存和存储器。<em>寄存器</em>是最小的单元，在线程执行期间为线程私有。<em>共享内存</em>和 <em>L1 缓存</em>由运行在同一个 SM 上的线程共享。再往上是所有 SM 共享的 <em>L2 缓存</em>，最后是<em>全局内存</em>，它是 GPU 上容量最大的内存（例如 H100 标称的 80 GB），但也是访问和查询最慢的。</p>
+<p><img alt="image.png" src="/assets/images/diving_primergpu2.svg"/></p>
+<div class="figure-legend"><p>来源：https://www.youtube.com/watch?v=ZQKMZIP3Fzg</p></div>
+<p>使用 GPU 的目标，就是利用计算/存储资源的这种层次化组织，在可用的核心上尽可能并行地运行尽可能多的工作负载。</p>
+<p>在 GPU 的某个核心上运行的一段代码称为<strong><em>内核（kernel）</em></strong>。它可以用 CUDA 或 Triton 等高层接口编写，然后编译为并行线程执行（Parallel Thread Execution，PTX），即 NVIDIA GPU 使用的底层汇编。</p>
+<p>要运行内核，你还需要一些<strong><em>主机代码（host code）</em></strong>，它在 CPU/主机上执行，负责准备数据分配以及加载数据和代码：</p>
+<div class="l-body code-block" style="display: grid; grid-template-columns: 1fr 1fr; align-items: center;">
+<div>
+<d-code block="" language="python">
+                    // Host code                
+                    void vecAdd(float* h_A, float *h_B, float *h_c, int n) {
+                        // Allocate vectors in device memory
+                        int size = n * sizeof(float);
+                        float *d_A, *d_B, *d_C;
+                        cudaMalloc(&amp;d_A, size);
+                        cudaMalloc(&amp;d_B, size);
+                        cudaMalloc(&amp;d_C, size);
+
+                        // Copy vectors from host memory to device memory
+                        cudaMemcpy(d_A, h_A, size, cudaMemcpyHostToDevice);
+                        cudaMemcpy(d_B, h_B, size, cudaMemcpyHostToDevice);
+
+                        // Invoke kernel
+                        int threadsPerBlock = 256;
+                        int blocksPerGrid =
+                                (N + threadsPerBlock - 1) / threadsPerBlock;
+                        VecAdd&lt;&lt;&lt;blocksPerGrid, threadsPerBlock&gt;&gt;&gt;(d_A, d_B, d_C, N);
+
+                        // Copy result from device memory to host memory
+                        // h_C contains the result in host memory
+                        cudaMemcpy(h_C, d_C, size, cudaMemcpyDeviceToHost);
+
+                        // Free device memory
+                        cudaFree(d_A);
+                        cudaFree(d_B);
+                        cudaFree(d_C);
+                    }</d-code>
+<div class="figure-legend">
+<p>用于对两个向量求和的 CUDA 内核的主机代码，改编自 https://docs.nvidia.com/cuda/cuda-c-programming-guide/ 和 https://blog.codingconfessions.com/p/gpu-computing</p>
+</div>
+</div>
+<div>
+<d-code block="" language="python">
+                    // Device code
+                    __global__ void VecAdd(float* A, float* B, float* C, int N)
+                    {
+                        int i = blockDim.x * blockIdx.x + threadIdx.x;
+                        if (i &lt; N)
+                            C[i] = A[i] + B[i];
+                    }
+                </d-code>
+<div class="figure-legend">
+<p>设备代码，包含向量加法内核的定义，改编自 https://docs.nvidia.com/cuda/cuda-c-programming-guide/ 和 https://blog.codingconfessions.com/p/gpu-computing</p>
+</div>
+</div>
+</div>
+<!-- <p><img alt="image.png" src="/assets/images/placeholder.png" /></p>
+        <p>Figure 5: Host code for a CUDA kernel for adding two vectors from https://blog.codingconfessions.com/p/gpu-computing</p>
+        <p><img alt="image.png" src="/assets/images/placeholder.png" /></p>
+ -->
+<p>内核的调度方式通常如下：</p>
+<ul>
+<li>线程被分组为 <em>warp</em>，每个 warp 包含 32 个线程。一个 warp 中的所有线程同步执行指令，但作用于数据的不同部分。</li>
+<li>warp 又被组合成更大的<em>线程块（block）</em>，其大小更为灵活（例如一个线程块中可以有 512 或 1,024 个线程），每个线程块分配给一个 SM。一个 SM 可以并行运行多个线程块。不过，受可用资源限制，并非所有线程块都能立即被分配执行；有些可能进入等待队列，直到有更多资源可用。</li>
+</ul>
+<p>这里要记住的关键一点是：存在各种尺寸与分配上的约束（各类存储器的容量、并发线程块的数量、warp 中的线程数），要最高效地利用 GPU 架构，就必须把这些约束考虑在内。</p>
+<p>大多数情况下，你不需要深入到这种精细程度，可以直接复用社区其他成员准备好的内核和代码——不过我们还是会给你一些上手编写内核的小建议！</p>
+<a id="improving_performance_with_kernels"></a><h3 id="improving_performance_with_kernels">用内核提升性能</h3>
+<p>如果你想新增一个缺少优化内核的运算，或者想加速某个已有的 PyTorch 函数，从零手写内核看起来可能是最直接的路径。然而，从零编写高性能 CUDA 内核需要大量经验，学习曲线非常陡峭。通常更好的入手方式是借助 <code>torch.compile</code>，它通过捕获你的运算并用 Triton 生成更低层的高性能内核，来动态优化 PyTorch 代码。</p>
+<p>假设你想为指数线性单元（Exponential Linear Unit，ELU）激活函数写一个内核：</p>
+<d-math block="">
+            \text{ELU}(x) = \begin{cases}
+            e^x - 1 &amp; \text{if } x &lt; 0 \\
+            x &amp; \text{if } x \geq 0
+            \end{cases}
+        </d-math>
+<p>你可以先写一个简单的 PyTorch 实现，然后在其上加上 <code>@torch.compile</code> 装饰器：</p>
+<d-code block="" language="python">
+            @torch.compile
+            def elu(x, alpha=1.0):
+                return torch.where(x &lt; 0, alpha * (torch.exp(x) - 1), x)
+        </d-code>
+<p>如下图所示，编译版本与非编译版本之间有着显著的性能差异，尤其是考虑到我们只加了一个装饰器（这里的 <d-math>N<d-math> 表示列数）：</d-math></d-math></p>
+<!-- RH: Should the label at the top of this figure just say "Performance Comparison of Torch and @torch.compile", as Triton isn't included in this one? -->
+<p><img alt="image.png" src="/assets/images/torch-compile-triton.png"/></p>
+<!-- <p><img alt="image.png" src="/assets/images/dp_scaling.svg"/></p> -->
+<p>不过，如果这样的性能提升仍不够，你可以考虑自己实现 Triton 内核。作为起点，你可以先看看 <code>@torch.compile</code> 生成的那个 Triton 内核。要做到这一点，你只需把环境变量 <code>TORCH_LOGS</code> 设为 <code>"output_code"</code>：</p>
+<d-code block="" language="bash">
+            export TORCH_LOGS="output_code"
+        </d-code>
+<p>运行带 <code>@torch.compile</code> 装饰器的 Python 脚本后，它会生成并输出对应的 Triton 内核，在这里是：</p>
+<d-code block="" language="python">
+            @triton.jit
+            def triton_(in_ptr0, out_ptr0, xnumel, XBLOCK : tl.constexpr):
+                xnumel = 100000000
+                xoffset = tl.program_id(0) * XBLOCK
+                xindex = xoffset + tl.arange(0, XBLOCK)[:]
+                xmask = xindex &lt; xnumel
+                x0 = xindex
+                tmp0 = tl.load(in_ptr0 + (x0), xmask)
+                tmp1 = 0.0
+                tmp2 = tmp0 &lt; tmp1
+                tmp3 = tl_math.exp(tmp0)
+                tmp4 = 1.0
+                tmp5 = tmp3 - tmp4
+                tmp6 = tl.where(tmp2, tmp5, tmp0)
+                tl.store(out_ptr0 + (x0), tmp6, xmask)
+        </d-code>
+<p>为提高可读性，我们可以修改变量名、添加注释，并做一些轻微调整（或者让 LLM 替我们做），如下所示：</p>
+<d-code block="" language="python">
+            @triton.jit
+            def elu_kernel(input_ptr, output_ptr, num_elements, BLOCK_SIZE: tl.constexpr):
+                # Calculate the starting index for this block
+                block_start = tl.program_id(0) * BLOCK_SIZE
+                # Create an array of indices for this block
+                block_indices = block_start + tl.arange(0, BLOCK_SIZE)[:]
+                # Create a mask to ensure only valid indices are processed
+                valid_mask = block_indices &lt; num_elements
+                # Load input values from the input pointer based on valid indices
+                input_values = tl.load(input_ptr + block_indices, valid_mask)
+                # Define the ELU parameters
+                zero_value = 0.0  # Threshold for ELU activation
+                negative_mask = input_values &lt; zero_value
+                exp_values = tl.math.exp(input_values)
+                # Define the ELU output shift
+                one_value = 1.0
+                shifted_exp_values = exp_values - one_value
+
+                output_values = tl.where(negative_mask, shifted_exp_values, input_values)
+
+                # Store the computed output values back to the output pointer
+                tl.store(output_ptr + block_indices, output_values, valid_mask)
+        </d-code>
+<p>这里，<code>tl.program_id(0)</code> 提供了一个唯一的线程块 ID，我们用它来确定该线程块将处理哪一段数据。借助这个线程块 ID，<code>block_start</code> 计算出每个线程块所处理数据段的起始索引，而 <code>block_indices</code> 指定该段内的索引范围。<code>valid_mask</code> 确保只处理 <code>num_elements</code> 范围内的索引，并用 <code>tl.load</code> 安全地加载数据。随后应用 ELU 函数，根据取值是否为负进行修改，最后用 <code>tl.store</code> 将结果写回内存。</p>
+<p>当我们用 <code>triton.testing.Benchmark</code> 对生成的内核做基准测试时，得到如下性能：</p>
+<p><img alt="image.png" src="/assets/images/torch-compile-triton-kernel.png"/></p>
+<p>在较小的尺寸下，这个独立内核的表现甚至优于 <code>@torch.compile</code>，但这很可能只是 <code>torch.compile</code> 编译耗时造成的假象。无论如何，请记住你不必从零开始，而可以从这类生成的内核出发，把精力集中在优化它们的性能上，从而省下大量时间。</p>
+<p>即便使用 Triton，有时我们也无法完全达到设备的峰值性能，因为该语言在处理共享内存、SM 内调度等底层细节时存在局限。Triton 的能力仅限于线程块，以及线程块在 SM 之间的调度。若想获得更深入的控制，你需要直接用 CUDA 实现内核，在那里你可以触及所有底层细节。</p>
+<p>借助 CUDA，可以采用多种技术来提升内核的效率。这里我们只介绍其中几项：优化显存访问模式以降低延迟、使用共享内存存放频繁访问的数据，以及管理线程的工作负载以尽量减少空闲时间。</p>
+<p>在深入 CUDA 示例之前，先总结一下我们见过的、可以用来编写在 GPU 上执行指令的内核代码的工具：</p>
+<ol>
+<li>PyTorch：简单但慢</li>
+<li><code>@torch.compile</code>：简单、快，但不灵活</li>
+<li>Triton：更难、更快，但更灵活</li>
+<li>CUDA：最难、最快，也最灵活（前提是你写对了）</li>
+</ol>
+<p>我们先从 CUDA 最常见的用途之一入手：优化显存访问。GPU 的全局内存（最大的存储区域，前面你已经看到过）相比缓存延迟更高、带宽更低，这构成了许多应用的主要瓶颈。高效地从全局内存读取数据可以大幅提升性能。</p>
+<a id="memory_coalescing"></a><h4 id="memory_coalescing">显存合并访问</h4>
+<p>要有效利用全局内存的带宽，理解其架构至关重要。在 CUDA 设备中，全局内存由 DRAM 实现。</p>
+<p><strong><em>显存合并访问</em></strong>利用了 DRAM 在访问某个内存地址时以突发（burst）方式送出数据的特性。每访问一个 DRAM 位置时，DRAM 芯片中的多个传感器会并行读取一段连续的位置（包括被请求的那个）。读取完成后，这些数据可以作为一个突发快速传输到处理器。在 CUDA 中，合并访问利用这种突发行为来最大化显存访问效率，其做法是确保一个 warp 中的线程——即一组 32 个以锁步方式执行同一条指令的线程——访问连续的内存位置。例如，若线程 0 访问位置 <d-math>M</d-math>，线程 1 访问 <d-math>M + 1</d-math>，线程 2 访问 <d-math>M + 2</d-math>，以此类推，GPU 硬件就会把这些请求合并或组合成一个针对 DRAM 突发的大而高效的访问请求，而不是逐个处理每一次访问。</p>
+<p>以矩阵乘法为例。一个简单直接的实现会让每个线程计算输出矩阵的一个元素，如下所示：</p>
+<d-code block="" language="clike">
+            __global__ void matmul_naive(int M, int N, int K, const float *A, const float *B, float *C) {
+                const uint x = blockIdx.x * blockDim.x + threadIdx.x;
+                const uint y = blockIdx.y * blockDim.y + threadIdx.y;
+            
+                if (x &lt; M &amp;&amp; y &lt; N) {
+                    float tmp = 0.0;
+                    for (int i = 0; i &lt; K; ++i) {
+                        tmp += A[x * K + i] * B[i * N + y];
+                    }
+                    C[x * N + y] = tmp;
+                }
+            }
+        </d-code>
+<p>下面这张图很好地展示了该内核，出自 Simon Boehm 那篇精彩的<a href="https://siboehm.com/articles/22/CUDA-MMM">博客文章</a>：</p>
+<p><img alt="image.png" src="/assets/images/memorycoalescing.png"/></p>
+<p>然而，当我们用 <code>ncu</code> 这类工具对这个内核做性能分析时，会看到一些问题，包括显存吞吐偏低和未合并的显存访问：</p>
+<div class="large-image-background-transparent">
+<div class="boxed-image">
+<img alt="image.png" src="/assets/images/memorycoalescing2.png" width="1400px"/>
+<img alt="image.png" src="/assets/images/memorycoalescing3.png" width="1400px"/>
+</div>
+</div>
+<p>原因在于，在这个内核中，同一个线程块里线程 ID 为 <code>(0, 0)</code> 和 <code>(1, 0)</code> 的两个线程（它们最终会落在同一个 warp 中）都会从矩阵 <strong>B</strong> 的同一列、但矩阵 <strong>A</strong> 的不同行加载数据。由于矩阵元素按行主序存储（即一行的元素位于连续的内存地址，如下图所示），在线程 <code>(0, 0)</code> 会加载 <d-math>A_{0,0}</d-math>，而线程 <code>(1, 0)</code> 在第一次迭代 <d-math>i = 0</d-math> 时会加载 <d-math>A_{1,0}</d-math>。这些元素在内存中彼此并不靠近，而且这种错位在每次迭代中都会存在，从而使显存访问无法被合并。</p>
+<p><img alt="image.png" src="/assets/images/memorycoalescing4.png"/></p>
+<p>为提升内核的性能，我们可以把坐标 <code>x</code> 和 <code>y</code> 的计算方式改成下面这样：</p>
+<d-code block="" language="clike">
+            const int x = blockIdx.x * BLOCKSIZE + (threadIdx.x / BLOCKSIZE);
+            const int y = blockIdx.y * BLOCKSIZE + (threadIdx.x % BLOCKSIZE);
+
+            if (x &lt; M &amp;&amp; y &lt; N) {
+            float tmp = 0.0;
+            for (int i = 0; i &lt; K; ++i) {
+                tmp += A[x * K + i] * B[i * N + y];
+            }
+            C[x * N + y] = tmp;
+            }
+        </d-code>
+<p>我们不再使用二维线程块，而是改用一维线程块，并重新定义 <code>x</code> 和 <code>y</code> 的取值方式。在这种新方法中，同一个 warp 内的线程（它们的 <code>threadIdx.x</code> 值彼此接近）会共享相同的 <code>x</code> 值，但 <code>y</code> 值不同。这意味着它们会加载矩阵 <strong>A</strong> 的同一行、但矩阵 <strong>B</strong> 的不同列。因此，对于行主序矩阵，显存访问可以合并。</p>
+<p>对新内核做性能分析时，我们注意到关于未合并显存访问的警告已经消失，而且<strong>GPU 的显存吞吐提升了约 10 倍</strong>。</p>
+<div class="large-image-background-transparent">
+<div class="boxed-image">
+<p><img alt="image.png" src="/assets/images/memorycoalescing5.png" width="1200px"/></p>
+</div>
+</div>
+<p>我们还注意到<strong>内核的执行时间缩短了 10 倍</strong>。太惊人了！</p>
+<p>现在来看另一种你经常会在文献中看到的技术：<strong><em>分块</em></strong>。</p>
+<a id="tiling"></a><h4 id="tiling">分块</h4>
+<p>分块是一种利用共享内存来优化显存访问模式的技术。如前所述，GPU 上的共享内存是一块小而快的存储区域，线程块内的所有线程都可以访问。它让数据可以被多个线程复用，从而减少反复从更慢的全局内存加载数据的需求。</p>
+<p>以矩阵乘法为例，一个线程块中的每个线程可能需要来自两个矩阵的元素，比如 <strong>A</strong> 和 <strong>B</strong>。如果每个线程都独立地从全局内存加载自己需要的行和列，最终会产生大量冗余加载，因为线程块中的多个线程会访问相互重叠的数据。相反，我们可以用分块把 <strong>A</strong> 和 <strong>B</strong> 的一个数据块（或“瓦片”）一次性加载到共享内存中，让该线程块内的所有线程复用同一份共享数据。</p>
+<p>在分块方法中，每次迭代都由线程块内的所有线程协作地把两个瓦片——一个来自矩阵 <strong>A</strong>，另一个来自矩阵 <strong>B</strong>——加载到共享内存。具体来说，线程会加载矩阵 <strong>A</strong> 的一个瓦片（大小为 <code>BLOCK_SIZE_M</code> × <code>BLOCK_SIZE_K</code>）和矩阵 <strong>B</strong> 的一个瓦片（大小为 <code>BLOCK_SIZE_K</code> × <code>BLOCK_SIZE_N</code>）。瓦片进入共享内存后，线程对这些瓦片做矩阵乘法；由于所有必需的数据都能快速访问，计算得以高效进行。瓦片乘法的结果存放在一个累加矩阵中，用于保存中间结果。每次迭代后，当前瓦片乘法的结果都会累加到该累加矩阵上，直到两个矩阵的所有瓦片都处理完毕。</p>
+<p><img alt="image.png" src="/assets/images/tiling.png"/></p>
+<div class="figure-legend">
+<p>来源：<a href="https://cnugteren.github.io/tutorial/pages/page4.html" target="_blank">https://cnugteren.github.io/tutorial/pages/page4.html</a></p>
+</div>
+<p>下面来看实现中你需要理解的关键部分：</p>
+<d-code block="" language="clike">
+            // Set pointers to the starting elements
+            A += blockRow * TILE_SIZE * K; // Start at row = blockRow, column = 0
+            B += blockCol * TILE_SIZE; // Start at row = 0, column = blockCol
+            C += blockRow * TILE_SIZE * N + blockCol * TILE_SIZE; // Start at row = blockRow, column = blockCol
+            float sum = 0.0;
+            // The outer loop moves through tiles of A (across columns) and B (down rows)
+            for (int tileIdx = 0; tileIdx &lt; K; tileIdx += TILE_SIZE) {
+            sharedA[localRow * TILE_SIZE + localCol] = A[localRow * K + localCol];
+            sharedB[localRow * TILE_SIZE + localCol] = B[localRow * N + localCol];
+
+            // Ensure all threads in the block have completed data loading
+            __syncthreads();
+
+            // Shift pointers to the next tile
+            A += TILE_SIZE;
+            B += TILE_SIZE * N;
+
+            // Compute the partial dot product for this tile
+            for (int i = 0; i &lt; TILE_SIZE; ++i) {
+                sum += sharedA[localRow * TILE_SIZE + i] * sharedB[i * TILE_SIZE + localCol];
+            }
+            // Synchronize again to prevent any thread from loading new data
+            // into shared memory before others have completed their calculations
+            __syncthreads();
+            }
+            C[localRow * N + localCol] = sum;
+        </d-code>
+<aside>为简单起见，我们考虑方形的瓦片。</aside>
+<p>每个线程首先把矩阵 <strong>A</strong> 和矩阵 <strong>B</strong> 各一个元素加载到共享内存。在这种情况下，实现合并的显存访问很直接：把 <code>threadIdx.x</code> 指定为<em>局部列索引</em>（<code>localCol</code>），就能确保同一个 warp 内的线程访问两个矩阵中相邻的元素。当线程块中的每个线程都完成把元素加载到共享内存（通过调用 <code>__syncthreads()</code> 来保证），它们便着手计算两个瓦片的点积。当线程遍历完所有瓦片——对 <strong>A</strong> 横向遍历、对 <strong>B</strong> 纵向遍历——得到的和会写入矩阵 <strong>C</strong> 的对应位置。</p>
+<p>用 <code>ncu</code> 对这个内核做基准测试时，我们注意到显存吞吐提升到 410 Gb/s，内核执行时间减少约 43%，达到约 6.6 TFLOPS 的性能。</p>
+<a id="thread_coarsening"></a><h4 id="thread_coarsening">线程粗化</h4>
+<p>分块技术显著提升了我们内核的性能。然而，在分析 warp 状态（它量化了在每个状态中花费了多少周期）时，我们观察到以下情况：</p>
+<p><img alt="image.png" src="/assets/images/threadcoarsening.png"/></p>
+<p>这些晦涩的状态名的含义可以在 <a href="https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html#metrics-reference">NVIDIA 的 Kernel Profiling Guide</a> 的 “Warp Stall Reasons” 一节中找到。在那里我们看到，<code>smsp__pcsamp_warps_issue_stalled_mio_throttle</code> 表示 “Warp 因等待 MIO（memory input/output）指令队列不再满而停顿。在 MIO 流水线被极度占用的情况下，这一停顿原因会很高，MIO 流水线包括特殊数学指令、动态分支以及共享内存指令。当由共享内存访问引起时，尝试使用更少但更宽的加载可以减少流水线压力”。</p>
+<p>所以看起来是 warp 在等待共享内存访问返回时发生了停顿！为了解决这个问题，我们可以应用一种称为<strong><em>线程粗化</em></strong>的技术，它把多个线程合并成一个粗化后的线程。这会显著减少共享内存访问，因为每个粗化后的线程可以处理多个输出元素。</p>
+<p>接下来，我们简要过一下编写或改进自定义内核时的最后一个重要考量：<strong><em>最小化控制分歧</em></strong>。</p>
+<a id="minimizing_control_divergence"></a><h4 id="minimizing_control_divergence">最小化控制分歧</h4>
+<p>流多处理器是按照<em>单指令多数据（Single Instruction, Multiple Data, SIMD）</em>模型来执行一个 warp 中所有线程的。这意味着在任意时刻，一条指令被取出，并为该 warp 内的所有线程同时执行。当一个 warp 被执行时，其中的线程处理数据的不同片段，但遵循同一条指令（这正是“单指令多数据”一名的由来）。SIMD 的主要优势在于效率：负责指令取指与分发的控制硬件由多个执行单元共享。这种设计把与控制功能相关的硬件开销降到最低，让更大一部分硬件可以专注于提升算术吞吐。</p>
+<p>当同一个 warp 内的线程走上不同的执行路径时，就会发生<em>控制分歧</em>。例如，如果某个条件语句（比如 <code>if</code> 语句）导致一些线程执行一个代码块、另一些线程执行另一个代码块，该 warp 就必须把这些执行串行化，结果是一些线程空闲等待其他线程完成。为了最小化控制分歧，我们需要在设计内核时确保同一个 warp 内的线程遵循相同的执行路径。这可以通过重构代码来减少分支、使用能确保所有线程走相似执行路径的数据结构，或者采用谓词化（predication）之类的技术来实现。</p>
+<p>我们已经覆盖了编写自定义内核、提升 GPU 操作性能与显存占用时的一些主要考量。但在进入一个真实例子之前，还有一个重要概念需要考虑：<strong><em>融合内核</em></strong>。</p>
+<a id="fused_kernels"></a><h3 id="fused_kernels">融合内核</h3>
+<p>前面已经在好几个地方提到过，GPU 与 CPU 的操作可以是异步的。特别是，CPU 上的主机代码可以以非阻塞的方式在 GPU 上调度工作负载。</p>
+<p>这对于重叠通信与计算很有用——正如我们在这趟旅程中多次看到的——但它也可以推广到更一般的想法：不惜一切代价避免在主机与 GPU 内核命令之间来回折返。</p>
+<p>这个想法由 <a href="https://upload.wikimedia.org/wikipedia/commons/b/b2/Hausziege_04.jpg">Horace He</a> 在<a href="https://horace.io/brrr_intro.html">这些图</a>中做了精彩的展示：</p>
+<div style="display: flex; gap: 20px; align-items: flex-start;">
+<div style="width: 50%;">
+<img alt="image.png" src="/assets/images/fused_kernels1.png" style="width: 100%;"/>
+<div class="figure-legend">
+<p>一系列内核需要在全局内存与计算单元之间来回传输</p>
+</div>
+</div>
+<div style="width: 50%;">
+<img alt="image.png" src="/assets/images/fused_kernels2.png" style="width: 100%;"/>
+<div class="figure-legend">
+<p>与其把我们的三角形送回全局内存只为再读回来，我们一次性完成所有运算。</p>
+</div>
+</div>
+</div>
+<p>如何避免左图所示的来回折返？最好的办法是让 GPU 尽可能自主。这通过把尽可能多的连续计算操作打包进单个内核交给 GPU 运行来实现，这种内核称为“融合内核”，如右图所示。</p>
+<p>对于在每个输入 token 上彼此独立执行的连续逐点操作，融合内核尤其高效、也尤其易于编写。在这种情况下，把计算出的值送回全局内存、再搬进 SM 内存并启动一个新内核毫无意义。把所有值都保留在本地，直到所有计算全部完成，效率要高得多。</p>
+<p>在 Transformer 模型中，每当我们有一连串逐点操作时，都可以应用这种“融合”方法，例如 LayerNorm 层中涉及的计算。</p>
+<p>现在我们已经具备了全部理解，可以去欣赏一件真正的内核工程杰作：<strong><em>FlashAttention</em></strong>。</p>
+<a id="flashattention"></a><h3 id="flashattention">FlashAttention</h3>
+<p>FlashAttention 由 <a href="https://tridao.me">Tri Dao</a> 提出，其思路是编写自定义 CUDA 内核来优化注意力计算，使其速度更快<em>并且</em>更节省显存。FlashAttention 背后的想法是高效利用 GPU 的各级显存，避免过度依赖其中最慢的一级：全局内存。</p>
+<p>现代 GPU 中的全局内存通常采用一种名为 <a href="https://semianalysis.com/2024/09/03/the-memory-wall/#hbm-roadmap"></a>高带宽内存（High Bandwidth Memory, HBM）的技术，尽管名字如此，它在 GPU 的显存层次中比 SRAM 更慢。当我们讨论 FlashAttention 的实现细节时，HBM 这一术语会很重要。</p>
+<p>注意力机制的基本实现涉及大量内存与工作单元之间的传输。它需要在 HBM 中物化 <strong>S</strong> 矩阵（其中 S = QK^T，即注意力分数）和 <strong>P</strong> 矩阵（其中 P = softmax(S)，即归一化后的注意力权重），这意味着结果需要被送到 HBM，然后再回到 SRAM 进行后续计算：</p>
+<p style="text-align: center"><img alt="image.png" src="/assets/images/flashattn.png" style="width: 500px"/></p>
+<p>由于 HBM 的带宽低得多，这给注意力计算引入了严重的瓶颈。我们能做得更好吗？<a href="https://upload.wikimedia.org/wikipedia/commons/b/b2/Hausziege_04.jpg">Tri Dao</a> 说可以！</p>
+<p>关键在于把 <strong>S</strong> 矩阵分成能放进 SM 较小共享内存的小块来计算。但我们还能做得更好，完全避免物化这个非常大的 <strong>S</strong> 矩阵，改为只保留计算 softmax 归一化因子所需的必要统计量。这样，我们就可以直接在 SRAM 中一次计算得到部分 <d-math>O</d-math>，而不必把中间结果来回搬运。在这种情况下，我们不仅利用了共享内存，还释放了物化模型最大的激活矩阵之一（在长上下文长度下）所造成的内存瓶颈：注意力矩阵。</p>
+<p><img alt="image.png" src="/assets/images/flashattn2.png"/></p>
+<div class="figure-legend"><p>来源：FlashAttention 论文<d-cite bibtex-key="dao2022flashattention"></d-cite></p></div>
+<p>FlashAttention 的思路解决了模型训练中的如此多瓶颈，以至于它很快成为所有 Transformer 中执行注意力的默认方式。特别地：</p>
+<ul>
+<li>通过避免物化 <strong>S</strong> 矩阵，我们<strong>减轻了注意力的显存负担</strong>。</li>
+<li>我们还<strong>消除了注意力 <d-math>O(S^2)</d-math> 开销中很大一部分的朴素影响</strong>。</li>
+</ul>
+<p>线性注意力的各种变体，以及近似注意力的次二次方方法（它们都在 Transformer 架构发明后不久被提出），大多已被搁置，转而采用这种精确且快速的 FlashAttention 实现与机制。</p>
+<p>在 FlashAttention-1 之后，同一个实验室陆续发布了两个改进版本：FlashAttention-2 和 -3。与 FlashAttention-1 相比，FlashAttention-2 和 -3 的改进较少涉及通用注意力机制本身，更多是让底层实现更有针对性地贴合 GPU：（1）尽可能减少非 matmul 操作的数量；（2）在 warp 与线程块之间仔细划分工作负载（FlashAttention-2）；（3）针对最新 Hopper（H100）架构上的 FP8 与 Tensor Core 支持做细致优化（FlashAttention-3）。</p>
+<aside>FlashAttention 对哪些注意力模式可以被加速施加了一些限制。可以看看 <a href="https://pytorch.org/blog/flexattention/">FlexAttention</a>，它是一个快速而灵活的变体。</aside>
+<p>FlashAttention 完美展示了：当你把当前 GPU 加速器的内部显存/计算设计纳入考量时，能带来怎样突破性的改进。</p>
+<p>本节到目前为止介绍的技术，都要求我们修改建模代码，并为某些运算手写自定义内核，以加速训练。</p>
+<p>在我们对计算运算本身进行底层剖析的最后一节，我们来看一系列与建模代码无关的方法。它们可用于任何模型，而且应用如此广泛，已经成为业界的标准做法：接下来是<strong><em>混合精度训练</em></strong>！</p>
+<a id="mixed_precision_training"></a><h3 id="mixed_precision_training">混合精度训练</h3>
+<p>在本书的多个章节中，我们讨论过低精度格式，以及它们对存储激活、参数和优化器状态所需显存的影响。现在该深入这些格式的细节，更好地理解它们的取舍、优势和局限了。</p>
+<p>顾名思义，混合精度训练就是在训练中混合使用不同的精度。PyTorch 张量的默认数值精度是<em>单精度浮点格式</em>，也称为 <em>FP32</em> 或 <em>float32</em>，这意味着存储的每个数字占用 32 位，即 4 字节。用于表示一个数的可用位被分为三部分：</p>
+<ul>
+<li>符号位：第一位决定该数是正还是负</li>
+<li>指数位：控制该数的量级</li>
+<li>尾数位：决定该数的有效数字</li>
+</ul>
+<p><img alt="sign-mantissa-exponent.svg" src="/assets/images/sign-mantissa-exponent.svg" width="500px"/></p>
+<p>回想一下数字的科学记数法，就能轻松说明浮点数的原理，例如 <d-math>- 5.734 \times 10^{7}</d-math>，其中先是符号，接着是尾数和指数。因此，我们可以用自适应的精度表示跨越很大量级范围的数。虽然 float32 是默认格式，但 PyTorch 中提供了一系列浮点格式：</p>
+<p></p>
+<table>
+<thead>
+<tr>
+<th><strong>Format</strong></th>
+<th><strong>总位数</strong></th>
+<th><strong>Sign</strong></th>
+<th><strong>Exponent</strong></th>
+<th><strong>Mantissa</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>float32</td>
+<td>32</td>
+<td>1</td>
+<td>8</td>
+<td>23</td>
+</tr>
+<tr>
+<td>float16</td>
+<td>16</td>
+<td>1</td>
+<td>5</td>
+<td>10</td>
+</tr>
+<tr>
+<td>bfloat16</td>
+<td>16</td>
+<td>1</td>
+<td>8</td>
+<td>7</td>
+</tr>
+<tr>
+<td>float8 (e4m3)</td>
+<td>8</td>
+<td>1</td>
+<td>4</td>
+<td>3</td>
+</tr>
+<tr>
+<td>float8 (e5m2)</td>
+<td>8</td>
+<td>1</td>
+<td>5</td>
+<td>2</td>
+</tr>
+</tbody>
+</table>
+<aside>注意：你可能会好奇 bfloat16 中的“b”从何而来。该格式是在 Google Brain 开发的，因此这里的“b”代表“brain”。</aside>
+<p>减少总位数是有代价的（这里同样没有免费的午餐），但我们对如何付出代价有一定控制权：可以牺牲尾数位，也可以牺牲指数位。正因如此，float8（FP8）也存在两种格式，按指数和尾数命名，这样我们就能灵活选择最合适的格式。下面看看每种格式可表示的数字范围：</p>
+<p><img alt="image.png" src="/assets/images/mixedprecision.png"/></p>
+<p>可以看到，float32 跨越 80 个数量级，float16 牺牲了大量范围，而 bfloat16 保持了完整范围。两种 float8 格式则进一步缩小了范围：e5m2 能保持 float16 的范围，而 e4m3 的范围更小。</p>
+<p>为什么有些格式能保持完整范围，有些却不能？我们来考察它们的分辨率：在 1 和 2 之间取 10,000 个点。每个点都会被舍入到该格式下最接近的可表示数：</p>
+<p><img alt="image.png" src="/assets/images/mixedprecision_2.png"/></p>
+<p>可以看到，bfloat16 虽然保持了 float32 的范围（不同于 float16），但这是以牺牲更多精度为代价的。float8 的情况更糟：在区间 [1,2] 内，e4m3 只能表示 7 个数，e5m2 只能表示 3 个数。</p>
+<p>衡量一种格式分辨率的常用指标是 <em>epsilon</em>：即 <d-math>1.00</d-math> 之后第一个可表示的数。可以看到，对 float32 格式而言，<d-math>10^{-4}</d-math> 是一个上界（实际上是 <d-math>1.19^{-7}</d-math>）。float16 约为 <d-math>10^{-3}</d-math>，而 bfloat 还要再高 10 倍。</p>
+<p>混合精度训练的思路是：对某些计算使用这些较低精度的格式，同时保持全精度训练的性能。事实证明，我们<strong>不能</strong>完全抛弃 float32，通常仍需要以全精度完成一部分计算。</p>
+<p>下面我们先看看用 16 位训练模型，然后再看能否更进一步，一直降到 8 位。</p>
+<a id="fp16_and_bf16_training"></a><h4 id="fp16_and_bf16_training">FP16 与 BF16 训练</h4>
+<p>遗憾的是，天真地把所有张量和运算都切换到 float16 行不通，结果通常是损失发散。不过，最初的混合精度训练论文<d-cite bibtex-key="micikevicius2018mixedprecisiontraining"></d-cite>提出了三个技巧，用来达到与 float32 训练相当的效果：</p>
+<ol>
+<li><strong>权重的 FP32 副本：</strong>FP16 权重存在两个可能的问题。训练过程中，一些权重可能变得非常小，从而被舍入为 0。然而，即使权重本身并不接近 0，如果更新量非常小，量级上的差异也会使它们在相加时下溢。权重一旦变成 0，就会在余下的训练中一直保持为 0，因为再也不会有梯度信号传过来。</li>
+<li><strong>损失缩放：</strong>梯度也存在类似问题：梯度往往远小于 1，因此有下溢的风险。一个简单而有效的策略是，在反向传播前对损失进行缩放，并在反向传播后对梯度反缩放。这确保了反向传播过程中不会发生下溢，而且这种缩放不会影响训练，因为我们在进一步处理梯度（例如裁剪）和执行优化步骤之前就完成了反缩放。</li>
+<li><strong>累加：</strong>最后，在以 16 位精度执行某些算术运算（例如求平均或求和）时，我们同样可能遇到下溢或上溢。解决办法是在运算过程中以 FP32 累加中间结果，只在最后把结果转回 16 位精度。</li>
+</ol>
+<p>借助这些技术，我们可以获得稳定的训练，同时因更低精度、更快的算术运算而享受更高的吞吐。</p>
+<p>作为一个好奇的读者——而且此时已经对最大化吞吐有点上瘾——你自然会问：我们能否比 16 位精度走得更远、更快？</p>
+<p>Maybe!</p>
+<a id="fp8_pretraining"></a><h4 id="fp8_pretraining">FP8 预训练</h4>
+<p>即使我们把通信与计算完美重叠，最终也总会撞上硬件本身底层的理论 FLOPS 上限——也就是每个单独运算在我们硬件上的效率。这正是数值精度变得关键的地方。例如，在 NVIDIA 的 H100 GPU 上，FP8 矩阵乘法（GEMM 运算）能达到 BF16 两倍的理论 FLOPS，这使得更低精度的训练成为进一步优化的诱人路径。</p>
+<p>近期研究——包括 FP8-LM<d-cite bibtex-key="peng2023fp8lmtrainingfp8large"></d-cite>、torchao<d-cite bibtex-key="torchao"></d-cite> 和 DeepSeek-V3<d-cite bibtex-key="deepseekai2024deepseekv3technicalreport"></d-cite>——已经展示了 FP8 训练在大规模模型上的潜力。不过，FP8 预训练带来了一个重大挑战：<strong>稳定性</strong>。在更低精度下，数值不稳定常常导致损失发散，难以达到更高精度训练的准确率。</p>
+<p>我们知道，在模型规模固定时，不稳定性会随学习率升高而加剧<d-cite bibtex-key="wortsman2023smallscaleproxieslargescaletransformer"></d-cite>，这使 FP8 预训练尤其棘手。</p>
+<p>下图是 FP8 训练中一条典型的发散损失曲线示例：</p>
+<iframe class="l-body-outset" frameborder="0" height="520" id="plotFP8Loss" scrolling="no" src="/assets/data/fp8/fp8_training_loss_curves.html" width="1000"></iframe>
+<!-- Hynek uncomment this once it's added to -->
+<!-- <div class="l-body-outset" id="fragment-fp8_training_loss_curves"></div> -->
+<p>首次成功进行 FP8 混合精度的超大规模训练，是在 DeepSeek-V3 技术报告<d-cite bibtex-key="deepseekai2024deepseekv3technicalreport"></d-cite>中公开报道的。作者仔细分析了前向传播（<em>Fprop</em>）中的每个运算，以及激活（<em>Dgrad</em>）和权重（<em>Wgrad</em>）反向传播。与 BF16 混合精度训练类似，一些聚合操作和主权重保持更高精度，而运算本身以 FP8 执行。</p>
+<p><img alt="image.png" src="/assets/images/fp8_diagram.png"/></p>
+<p>为了从高精度（例如 FP32 或 BF16）切换到动态范围更小的低精度（例如 FP16 或 FP8），我们需要对激活值的范围做归一化，例如计算它们的绝对值最大值。DeepSeek-V3 进一步引入了一种特定的量化方案，按 tile 对范围做归一化：输入/激活采用 1x128，权重和缩放因子采用 128x128。这使得归一化受激活中离群值的影响更小。作者还提出了若干额外技巧，以进一步降低显存与通信开销，你可以在技术报告的第 3.3 节读到这些内容<d-cite bibtex-key="deepseekai2024deepseekv3technicalreport"></d-cite>。</p>
+<p>下面总结几种已知的 FP8 训练方法：</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>GEMM 的精度</th>
+<th>主模型权重</th>
+<th>累积梯度</th>
+<th>模型权重</th>
+<th>Gradients</th>
+<th>优化器状态</th>
+<th>总显存</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BF16 加 FP32 混合精度基线</td>
+<td>BF16</td>
+<td>FP32</td>
+<td>FP32</td>
+<td>BF16</td>
+<td>BF16</td>
+<td>FP32 + FP32</td>
+<td>4 + 4 + 2 + 2 + 4 + 4 = 20 bytes</td>
+</tr>
+<tr>
+<td>上述方案但不做 FP32 梯度累积</td>
+<td>BF16</td>
+<td>FP32</td>
+<td>n/a</td>
+<td>BF16</td>
+<td>BF16</td>
+<td>FP32 + FP32</td>
+<td>4 + 2 + 2 + 4 + 4 = 16 字节（减少 20%）</td>
+</tr>
+<tr>
+<td>Transformer engine</td>
+<td>FP8</td>
+<td>n/a</td>
+<td>n/a</td>
+<td>FP32</td>
+<td>FP32</td>
+<td>FP32 + FP32</td>
+<td>4 + 4 + 4 + 4 = 16 字节（减少 20%）</td>
+</tr>
+<tr>
+<td>FP8-LM 的 O3 级别</td>
+<td>FP8</td>
+<td>FP16</td>
+<td>FP16</td>
+<td>FP8</td>
+<td>FP8</td>
+<td>FP8 + FP16</td>
+<td>2 + 2 + 1 + 1 + 1 + 2 = 9 字节（减少 55%）</td>
+</tr>
+<tr>
+<td>DeepSeek-V3</td>
+<td>FP8</td>
+<td>FP32</td>
+<td>FP32</td>
+<td>FP8</td>
+<td>BF16</td>
+<td>BF16 + BF16</td>
+<td>4 + 4 + 1 + 2 + 2 + 2 = 15 (25% reduction)</td>
+</tr>
+<tr>
+<td>Nanotron 的 FP8</td>
+<td>FP8</td>
+<td>BF16</td>
+<td>FP32</td>
+<td>FP8</td>
+<td>FP8</td>
+<td>FP8 + FP8</td>
+<td>2 + 4 + 1 + 1 + 1 + 1 = 10 字节（减少 50%）</td>
+</tr>
+</tbody>
+</table>
+<p>总体而言，FP8 在 2025 年初仍是一项实验性技术，相关方法仍在演进。鉴于其显而易见的收益，它很可能成为标准，并很快取代 BF16 混合精度。要查看 FP8 训练技术的开源实现，可以看<a href="https://github.com/huggingface/nanotron/pull/70">这个 Nanotron PR</a>。</p>
+<p>再往未来看，NVIDIA 的下一代芯片 Blackwell <a href="https://www.nvidia.com/en-us/data-center/technologies/blackwell-architecture/">已宣布</a>支持 FP4 训练，这将进一步加快训练速度，但无疑也会带来新的训练稳定性挑战。</p>
+<p>最后一节为我们这段漫长旅程画上了句号——从数十块到数千块 GPU 上快速训练大模型的领域。是时候慢慢让我们的 GPU 集群停下来，退后一步，回顾一路学到的所有东西了！</p>
+<a id="conclusion"></a><h2 id="conclusion">结语</h2>
+<p>亲爱的读者，恭喜你读到了最后！我们完成了一段相当长的旅程：从探索如何在单块 GPU 上训练一个简单模型开始，一路走到掌握各种精巧技术，用以在数千块 GPU 上高效训练 Llama-405B 和 DeepSeek-V3 这样的超大规模语言模型。到现在，你应该能（相对）轻松地读懂像 Llama-3 的 4D 并行配置这样的示意图了：</p>
+<p><img alt="image.png" src="/assets/images/conclusion_llama3_parallelism.png"/></p>
+<p>协调大规模 GPU 集群高效地训练 LLM 绝非易事，但你已经学会了如何优化 GPU 之间的计算与通信，使它们始终以最高利用率运行。如你所见，这涉及为给定的模型和集群规模选择合适的并行策略，尽可能重叠通信与计算，以及编写考虑硬件布局的自定义内核，从而在 GPU 上尽可能快地完成某个操作。</p>
+<p>你可能仍觉得这些知识有些小众，只与一小部分预训练 LLM 的人相关。从历史上看，这或许没错，但随着<a href="https://huggingface.co" target="_blank"> AI 构建者社区</a>和模型规模都在快速增长，将分布式技术用于推理、微调和训练的人群也在指数级增长，分布式训练配置因而越来越常见。因此，深入钻研分布式相关的一切可能恰逢其时。</p>
+<p>这是一段漫长的学习旅程，而且不只对你如此！在 GPU 集群上运行数千个基准测试比我们预想的更具挑战，我们也想分享一些我们自己学习经历中的亮点。</p>
+<a id="so,_what’s_next?"></a><h3 id="so,_what’s_next?">那么，接下来做什么？</h3>
+<p>你现在已经对分布式训练的主要概念有了不错的整体认识，但我们只是触及了其中若干工具和技术的表面。深入某个主题的方式有很多，以下是我们推荐的几步：</p>
+<ul>
+<li>仔细阅读一些里程碑式或非常新的论文。你可以在<a class="" href="#references" target="_self">参考文献</a>中找到我们所知的最有影响力的论文、博客文章和书籍的详尽清单。</li>
+<li>从零开始，自己实现一个算法。通常，只有真正实现过一个方法，它才会完全“开窍”。</li>
+<li>深入一个广泛使用的框架并开始贡献：修 bug、回答问题、或实现一个新特性。这是进入任何 ML 领域的最佳途径！</li>
+</ul>
+<p>我们希望本书能帮助你入门分布式训练，也希望你能在 GPU 集群的嗡鸣声中训练出下一代出色的模型！愿开源与开放科学的力量永远与你同在。</p>
+<!-- RH: I'm assuming the following part should be commented out for the book version? -->
+<!-- <hr>
+
+        <p> <strong>One last word</strong> for our first readers. We're so happy with this writing piece that we've decided to distribute a limited number of physical printed editions of it as a gift for our first readers.</p>
+        <p>If you are among the first 50 people to fill in your email address below, we'll contact you later in the year to send you a real physical edition once we've formatted it as a printed copy.</p>
+        <p>We expect the book to be around 100-150 pages and to cover the same content as the blog post but we may also decide to shorten or lengthen it depending on what make sense as a printed object.</p>
+        <p>To get your physical copy, please fill in your email address in the following <a target="_blank" href="https://forms.gle/e1GkAShUCtgcwnne8">google form</a>.</p>
+        <p>Whether you are one of our first readers or coming much later to this blog post, we've very happy to see that you enjoyed this sharing of knowledge. May the force of open-source and open-science always be with you.</p> -->
+<a id="acknowledgments"></a><h3 id="acknowledgments">致谢</h3>
+<p>感谢 <a href="https://huggingface.co/eliebak">Elie</a> 进行了细致的审阅，并使用 NotebookLM 制作了音频内容。特别感谢 <a href="https://huggingface.co/hynky">Hynek</a> 优化了前端性能。我们也感谢 <a href="https://huggingface.co/sbrandeis">Simon</a> 解决了 Hub 上的一些问题。</p>
+<a id="discussion_page"></a><h3 id="discussion_page">讨论页面</h3>
+<p>如果你想讨论本书内容、提问、提出修改建议，或只是打个招呼，请在<a href="https://huggingface.co/spaces/nanotron/ultrascale-playbook/discussions">讨论页面</a>开一个帖子。</p>
+<a id="references"></a><h2 id="references">参考文献</h2>
+<a id="landmark_llm_scaling_papers"></a><h3 id="landmark_llm_scaling_papers">里程碑式 LLM 扩展论文</h3>
+<div>
+<a href="https://arxiv.org/abs/1909.08053"><strong>Megatron-LM</strong></a>
+<p>介绍了用于训练大语言模型的张量并行和高效模型并行技术。</p>
+</div>
+<div>
+<a href="https://developer.nvidia.com/blog/using-deepspeed-and-megatron-to-train-megatron-turing-nlg-530b-the-worlds-largest-and-most-powerful-generative-language-model/"><strong>Megatron-Turing NLG 530B</strong></a>
+<p>描述了结合 DeepSpeed 与 Megatron-LM 框架训练 530B 参数模型的过程。</p>
+</div>
+<div>
+<a href="https://arxiv.org/abs/2204.02311"><strong>PaLM</strong></a>
+<p>介绍了 Google 的 Pathways 语言模型，展示了其在数百项语言任务上的强劲表现以及推理能力。</p>
+</div>
+<div>
+<a href="https://arxiv.org/abs/2312.11805"><strong>Gemini</strong></a>
+<p>介绍了 Google 的多模态模型架构，能够处理文本、图像、音频和视频输入。</p>
+</div>
+<div>
+<a href="https://arxiv.org/abs/2407.21783"><strong>Llama 3</strong></a>
+<p>介绍了 Llama 3 系列模型。</p>
+</div>
+<div>
+<a href="https://arxiv.org/abs/2412.19437v1"><strong>DeepSeek-V3</strong></a>
+<p>DeepSeek 关于 DeepSeek-V3 模型架构与训练的报告。</p>
+</div>
+<a id="training_frameworks"></a><h3 id="training_frameworks">训练框架</h3>
+<div>
+<a href="https://github.com/huggingface/nanotron"><strong>Nanotron</strong></a>
+<p>我们用于训练大语言模型的框架，支持多种并行策略。</p>
+</div>
+<div>
+<a href="https://github.com/NVIDIA/Megatron-LM"><strong>Megatron-LM</strong></a>
+<p>NVIDIA 用于训练大语言模型的框架，支持多种并行策略。</p>
+</div>
+<div>
+<a href="https://www.deepspeed.ai/"><strong>DeepSpeed</strong></a>
+<p>微软的深度学习优化库，提供 ZeRO 优化阶段和多种并行策略。</p>
+</div>
+<div>
+<a href="https://github.com/facebookresearch/fairscale/tree/main"><strong>FairScale</strong></a>
+<p>一个用于大规模训练的 PyTorch 扩展库，提供多种并行与优化技术。</p>
+</div>
+<div>
+<a href="https://colossalai.org/"><strong>Colossal-AI</strong></a>
+<p>一个集成多种优化技术的大规模模型训练系统。</p>
+</div>
+<div>
+<a href="https://github.com/pytorch/torchtitan"><strong><code>torchtitan</code></strong></a>
+<p>一个 PyTorch 原生的、用于大模型训练的库。</p>
+</div>
+<div>
+<a href="https://github.com/EleutherAI/gpt-neox"><strong>GPT-NeoX</strong></a>
+<p>EleutherAI 用于训练大语言模型的框架，曾用于训练 GPT-NeoX-20B。</p>
+</div>
+<div>
+<a href="https://github.com/Lightning-AI/litgpt"><strong>LitGPT</strong></a>
+<p>Lightning AI 对 20 多个最先进开源 LLM 的实现，侧重于可复现性。</p>
+</div>
+<div>
+<a href="https://github.com/PrimeIntellect-ai/OpenDiLoCo"><strong>OpenDiLoCo</strong></a>
+<p>一个使用 DiLoCo 跨计算集群训练语言模型的开源框架。</p>
+</div>
+<div>
+<a href="https://github.com/kakaobrain/torchgpipe"><strong>torchgpipe</strong></a>
+<p>PyTorch 中的 GPipe 实现。</p>
+</div>
+<div>
+<a href="https://github.com/EleutherAI/oslo"><strong>OSLO</strong></a>
+<p>用于大规模建模的 Open Source for Large-scale Optimization 框架。</p>
+</div>
+<a id="debugging"></a><h3 id="debugging">调试</h3>
+<div>
+<a href="https://pytorch.org/tutorials/recipes/recipes/profiler_recipe.html"><strong>Speed profiling</strong></a>
+<p>PyTorch 官方教程：使用性能分析器分析模型性能与瓶颈。</p>
+</div>
+<div>
+<a href="https://pytorch.org/blog/understanding-gpu-memory-1/"><strong>Memory profiling</strong></a>
+<p>全面指南：理解并优化 PyTorch 中的 GPU 显存使用。</p>
+</div>
+<div>
+<a href="https://huggingface.co/blog/train_memory"><strong>Memory profiling walkthrough on a simple example</strong></a>
+<p>可视化并理解 PyTorch 中 GPU 显存的指南。</p>
+</div>
+<div>
+<a href="https://pytorch.org/tutorials/intermediate/tensorboard_profiler_tutorial.html"><strong>TensorBoard profiler tutorial</strong></a>
+<p>使用 TensorBoard 的性能分析工具分析 PyTorch 模型的指南。</p>
+</div>
+<a id="distribution_techniques"></a><h3 id="distribution_techniques">分布式技术</h3>
+<div>
+<a href="https://siboehm.com/articles/22/data-parallel-training"><strong>Data parallelism</strong></a>
+<p>全面讲解深度学习中的数据并行训练。</p>
+</div>
+<div>
+<a href="https://arxiv.org/abs/1910.02054"><strong>ZeRO</strong></a>
+<p>介绍了零冗余优化器（Zero Redundancy Optimizer），用于在训练大模型时优化显存。</p>
+</div>
+<div>
+<a href="https://arxiv.org/abs/2304.11277"><strong>FSDP</strong></a>
+<p>PyTorch 中的 Fully Sharded Data Parallel 训练实现。</p>
+</div>
+<div>
+<a href="https://arxiv.org/abs/2205.05198"><strong>Tensor and sequence parallelism + selective recomputation</strong></a>
+<p>结合不同并行策略高效训练大规模模型的高级技术。</p>
+</div>
+<div>
+<a href="https://developer.nvidia.com/blog/scaling-language-model-training-to-a-trillion-parameters-using-megatron/#pipeline_parallelism"><strong>Pipeline parallelism</strong></a>
+<p>NVIDIA 关于为大规模模型训练实现流水线并行的指南。</p>
+</div>
+<div>
+<a href="https://arxiv.org/abs/2211.05953"><strong>Breadth-first pipeline parallelism</strong></a>
+<p>包含对 PP 调度方案的广泛讨论。</p>
+</div>
+<div>
+<a href="https://andrew.gibiansky.com/blog/machine-learning/baidu-allreduce/"><strong>Ring all-reduce</strong></a>
+<p>详细讲解分布式训练中使用的环形全规约算法。</p>
+</div>
+<div>
+<a href="https://github.com/zhuzilin/ring-flash-attention"><strong>Ring Flash Attention</strong></a>
+<p>结合 FlashAttention 的环形注意力机制的实现，用于高效训练。</p>
+</div>
+<div>
+<a href="https://coconut-mode.com/posts/ring-attention/"><strong>Ring Attention tutorial</strong></a>
+<p>讲解环形注意力概念与实现的教程。</p>
+</div>
+<div>
+<a href="https://www.deepspeed.ai/tutorials/large-models-w-deepspeed/#understanding-performance-tradeoff-between-zero-and-3d-parallelism"><strong>ZeRO and 3D</strong></a>
+<p>DeepSpeed 的指南：理解 ZeRO 与 3D 并行策略之间的权衡。</p>
+</div>
+<div>
+<a href="https://arxiv.org/abs/1710.03740"><strong>Mixed precision training</strong></a>
+<p>介绍面向深度学习模型的混合精度训练技术。</p>
+</div>
+<div>
+<a href="https://main-horse.github.io/posts/visualizing-6d/"><strong>Visualizing 6D mesh parallelism
+            </strong></a>
+<p>解释了 6D 并行网格中涉及的集合通信。</p>
+</div>
+<a id="hardware"></a><h3 id="hardware">硬件</h3>
+<div>
+<a href="https://www.arxiv.org/abs/2408.14158"><strong>Fire-Flyer, a 10,000 PCI chip cluster</strong></a>
+<p>DeepSeek 关于设计含 10k 块 PCI GPU 的集群的报告。</p>
+</div>
+<div>
+<a href="https://engineering.fb.com/2024/03/12/data-center-engineering/building-metas-genai-infrastructure/"><strong>Meta's 24k H100 clusters</strong></a>
+<p>Meta 对其基于 NVIDIA H100 GPU 构建的大规模 AI 基础设施的详细概述。</p>
+</div>
+<div>
+<a href="https://www.semianalysis.com/p/100000-h100-clusters-power-network"><strong>SemiAnalysis's 100k H100 cluster</strong></a>
+<p>对大规模 H100 GPU 集群的分析，以及它们对 AI 基础设施的启示。</p>
+</div>
+<div>
+<a href="https://modal.com/gpu-glossary/readme"><strong>Modal GPU glossary </strong></a>
+<p>写给人类看的 CUDA 文档。</p>
+</div>
+<a id="others"></a><h3 id="others">其他</h3>
+<div>
+<a href="https://github.com/stas00/ml-engineering"><strong>Stas Bekman's handbook</strong></a>
+<p>涵盖训练 LLM 各个方面的综合性手册。</p>
+</div>
+<div>
+<a href="https://github.com/bigscience-workshop/bigscience/blob/master/train/tr11-176B-ml/chronicles.md"><strong>BLOOM training chronicles</strong></a>
+<p>关于 BLOOM 模型训练过程与挑战的详细文档。</p>
+</div>
+<div>
+<a href="https://github.com/facebookresearch/metaseq/blob/main/projects/OPT/chronicles/OPT175B_Logbook.pdf"><strong>OPT logbook</strong></a>
+<p>Meta 记录 OPT-175B 模型训练过程的详细日志。</p>
+</div>
+<div>
+<a href="https://www.harmdevries.com/post/model-size-vs-compute-overhead/"><strong>Harm's law for training smol models longer</strong></a>
+<p>对模型规模与训练开销之间关系的考察。</p>
+</div>
+<div>
+<a href="https://www.harmdevries.com/post/context-length/"><strong>Harm's blog on long contexts</strong></a>
+<p>从数据与训练成本角度对长上下文训练的考察。</p>
+</div>
+<div>
+<a href="https://www.youtube.com/@GPUMODE/videos"><strong>GPU Mode</strong></a>
+<p>一个 GPU 论文阅读小组与社区。</p>
+</div>
+<div>
+<a href="https://youtube.com/playlist?list=PLvtrkEledFjqOLuDB_9FWL3dgivYqc6-3&amp;si=fKWPotx8BflLAUkf"><strong>EleutherAI YouTube channel</strong></a>
+<p>机器学习可扩展性与性能论文阅读小组。</p>
+</div>
+<div>
+<a href="https://jax-ml.github.io/scaling-book/"><strong>Google JAX scaling book</strong></a>
+<p>如何扩展你的模型。</p>
+</div>
+<div>
+<a href="https://github.com/facebookresearch/capi/blob/main/fsdp.py"><strong>@fvsmassa &amp; @TimDarcet FSDP</strong></a>
+<p>约 500 行代码的独立 FSDP 实现</p>
+</div>
+<div>
+<a href="https://www.thonking.ai/"><strong>thonking.ai</strong></a>
+<p>Horace He 的一些博客文章。</p>
+</div>
+<div>
+<a href="https://gordicaleksa.medium.com/eli5-flash-attention-5c44017022ad"><strong>Aleksa's ELI5: FlashAttention</strong></a>
+<p>对 FlashAttention 的通俗解释。</p>
+</div>
+<div>
+<a href="https://github.com/tunib-ai/large-scale-lm-tutorials"><strong>TunibAI's 3D parallelism tutorials</strong></a>
+<p>使用 PyTorch 的大规模语言建模教程。</p>
+</div>
+<a id="appendix"></a><h2 id="appendix">附录</h2>
+<a id="a0:_parallel_programming_crash_course"></a><h3 id="a0:_parallel_programming_crash_course">A0：并行编程速成课</h3>
+<p>在本书中，我们把 LLM 训练从单块 GPU 扩展到数百块 GPU。这需要在所有机器之间通信并同步权重、梯度和数据。为此有一组专门实现这件事的分布式模式，称为<strong><em>集合通信操作</em></strong>。本节将对其中一些操作做一次小型速成讲解——<em>Broadcast</em>、<em>AllReduce</em>、<em>Scatter</em> 等。我们直接开始吧！</p> <!-- RH: Up to now, you've styled the names of the operations broadcast, all-reduce, etc. Would it be better to stick to the same style in the Appendix, to avoid any potential confusion on the part of the reader? Or refer to them as patterns when using the uppercase versions of the names? --> <!-- NT: Both are fine to me, shouldn't be confusing to reader i guess -->
+<p>一般设定是：我们有若干相互独立的节点，它们可以是 CPU 核、GPU 或计算节点。每个节点各自执行一些计算，随后我们希望把结果或其一部分传递给其他节点，用于下一步计算（<d-math>t+1</d-math>）。</p>
+<p style="text-align: center"><img alt="image.png" src="/assets/images/a0_general.png" style="width: 400px"/></p>
+<p>也许我们需要把一个节点的结果发送给其余所有节点，也许需要把每个节点的中间结果求和以报告总体结果。通常会有某个地位更高的节点扮演中心角色，这里记作 <em>root</em>，它是某些操作的目标或来源。我们先从最简单的原语之一开始：Broadcast 操作。</p>
+<a id="broadcast"></a><h4 id="broadcast">Broadcast</h4>
+<p>一种非常常见的模式是：你在节点 1 上有一些数据，想把它共享给所有其他节点，好让它们能用这些数据做一些计算。Broadcast 操作做的正是这件事：</p>
+<p style="text-align: center"><img alt="image.png" src="/assets/images/a0_broadcast.png" style="width: 400px"/></p>
+<p>集合通信操作由 PyTorch 原生提供，因此我们可以轻松写一个小例子来演示广播是如何工作的。我们首先需要调用 <code>dist.initi_process_group</code> 初始化一个进程组，它会设置通信后端（NCCL 我们稍后再谈）。它确定存在多少个 worker（也就是节点），并给每个 worker 分配一个 rank（可以用 <code>dist.get_rank</code> 获取）。最后，它在各 worker 之间建立连接。</p>
+<p>为了展示 <code>dist.broadcast</code> 操作，我们在 <code>rank=0</code> 上创建一个含非零值的张量，在其他 worker 上创建全零张量。然后用 <code>dist.broadcast(tensor, src=0)</code> 把 <code>rank=0</code> 的张量分发到所有其他 rank：</p>
+<d-code block="" language="python">
+            import torch
+            import torch.distributed as dist
+
+            def init_process():
+                dist.init_process_group(backend='nccl')
+                torch.cuda.set_device(dist.get_rank())
+                
+            def example_broadcast():
+                if dist.get_rank() == 0:
+                    tensor = torch.tensor([1, 2, 3, 4, 5], dtype=torch.float32).cuda()
+                else:
+                    tensor = torch.zeros(5, dtype=torch.float32).cuda()
+                print(f"Before broadcast on rank {dist.get_rank()}: {tensor}")
+                dist.broadcast(tensor, src=0)
+                print(f"After broadcast on rank {dist.get_rank()}: {tensor}")
+                
+            init_process()
+            example_broadcats()
+        </d-code>
+<p>你可以用 <code>torchrun --nproc_per_node=3 dist_op.py</code> 运行上面的脚本（这需要三块 GPU，或者按需修改 <code>nproc_per_node</code>），应该会看到如下输出：</p>
+<d-code block="" language="python">
+            Before broadcast on rank 0: tensor([1., 2., 3., 4., 5.], device='cuda:0')
+            Before broadcast on rank 1: tensor([0., 0., 0., 0., 0.], device='cuda:1')
+            Before broadcast on rank 2: tensor([0., 0., 0., 0., 0.], device='cuda:2')
+
+            After broadcast on rank 0: tensor([1., 2., 3., 4., 5.], device='cuda:0')
+            After broadcast on rank 1: tensor([1., 2., 3., 4., 5.], device='cuda:1')
+            After broadcast on rank 2: tensor([1., 2., 3., 4., 5.], device='cuda:2')
+        </d-code>
+<p>很好，看起来它按预期工作。注意，各 rank 的消息打印顺序可能是乱序的，因为我们无法控制哪条 print 语句先执行（为了便于阅读，这里对它们排了序）。接下来看 Reduce 与 AllReduce 模式！</p>
+<a id="reduce_&amp;_allreduce"></a><h4 id="reduce_&amp;_allreduce">Reduce &amp; AllReduce</h4>
+<p>Reduce 模式是分布式数据处理中最基础的模式之一。其思路是：通过一个函数 <code>f()</code> 把各节点上的数据合并起来，这个函数可以执行求和或求平均等操作。在 Reduce 范式中，结果只发送给根节点；而在 AllReduce 中，结果会广播到所有节点：</p>
+<p style="text-align: center"><img alt="image.png" src="/assets/images/a0_reduce_allreduce.png" style="width: 1000px"/></p>
+<p>当然，并不存在某种能自己完成这一操作的神奇“自由飞行”节点；一般来说，每个节点只做一部分计算，节点按环形或树形结构组织。举个简单的例子：假设我们要计算各节点上数字的总和，而节点以环形方式相连。第一个节点把自己的数字发给邻居，邻居把收到的数字与自己的数字相加，再转发给下一个邻居。绕环一周之后，第一个节点就会收到总和。</p>
+<p>下面这段代码运行一个简单的 Reduce 操作，对各张量求和。我们用 <code>op=dist.ReduceOp.SUM</code> 指定要使用的操作（关于支持的操作，更多信息见 <a href="https://pytorch.org/docs/stable/distributed.html#torch.distributed.ReduceOp">PyTorch 文档</a>）：</p>
+<d-code block="" language="python">
+            def example_reduce():
+                tensor = torch.tensor([dist.get_rank() + 1] * 5, dtype=torch.float32).cuda()
+                print(f"Before reduce on rank {dist.get_rank()}: {tensor}")
+                dist.reduce(tensor, dst=0, op=dist.ReduceOp.SUM)
+                print(f"After reduce on rank {rank}: {tensor}")
+    
+            init_process()
+            example_reduce()
+        </d-code>
+<p>注意，在 Reduce 操作中，只有 <code>dst</code> 节点上的张量会被更新：</p>
+<d-code block="" language="python">
+            Before reduce on rank 0: tensor([1., 1., 1., 1., 1.], device='cuda:0')
+            Before reduce on rank 1: tensor([2., 2., 2., 2., 2.], device='cuda:1')
+            Before reduce on rank 2: tensor([3., 3., 3., 3., 3.], device='cuda:2')
+
+            After reduce on rank 0: tensor([6., 6., 6., 6., 6.], device='cuda:0')
+            After reduce on rank 1: tensor([2., 2., 2., 2., 2.], device='cuda:1')
+            After reduce on rank 2: tensor([3., 3., 3., 3., 3.], device='cuda:2')
+        </d-code>
+<p>类似地，我们可以按如下方式执行 AllReduce（这种情况下不需要指定目标节点）：</p>
+<d-code block="" language="python">
+            def example_all_reduce():
+                tensor = torch.tensor([dist.get_rank() + 1] * 5, dtype=torch.float32).cuda()
+                print(f"Before all_reduce on rank {dist.get_rank()}: {tensor}")
+                dist.all_reduce(tensor, op=dist.ReduceOp.SUM)
+                print(f"After all_reduce on rank {dist.get_rank()}: {tensor}")
+                
+            init_process()
+            example_all_reduce()
+        </d-code>
+<p>此时，结果在所有节点上都可用：</p>
+<d-code block="" language="python">
+            Before all_reduce on rank 0: tensor([1., 1., 1., 1., 1.], device='cuda:0')
+            Before all_reduce on rank 1: tensor([2., 2., 2., 2., 2.], device='cuda:1')
+            Before all_reduce on rank 2: tensor([3., 3., 3., 3., 3.], device='cuda:2')
+            
+            After all_reduce on rank 0: tensor([6., 6., 6., 6., 6.], device='cuda:0')
+            After all_reduce on rank 1: tensor([6., 6., 6., 6., 6.], device='cuda:1')
+            After all_reduce on rank 2: tensor([6., 6., 6., 6., 6.], device='cuda:2')
+        </d-code>
+<p>现在转向下一个分布式通信操作。在许多实际场景中，每个节点各自执行大量复杂计算，而我们需要在所有节点之间共享最终结果。这时就要用到 Gather 和 AllGather。我们来看一下！</p>
+<a id="gather_&amp;_allgather_"></a><h4 id="gather_&amp;_allgather_">Gather &amp; AllGather </h4>
+<p>Gather 和 AllGather 与 Broadcast 操作颇为相似，因为它们都能在不做修改的情况下把数据分发到各节点。与 Broadcast 的主要区别在于：这里并不是要把某一个值从一个节点共享给所有其他节点；相反，每个节点各自持有一块数据，而我们希望要么把所有数据收集到一个节点上（Gather 的情形），要么把所有数据收集到所有节点上（AllGather 的情形）。一图胜千言，我们来看：</p>
+<!-- RH: Is this image correct, or should there also be solid lines from 1 to 2 and from 3 to 2 on the right? -->
+<p style="text-align: center"><img alt="image.png" src="/assets/images/a0_gather_allgather.png" style="width: 1000px"/></p>
+<p>虚线表示某些数据实际上完全没有移动（因为它本来就在该节点上）。</p>
+<p>在 Gather 操作中，我们需要准备一个容器对象来存放收集到的张量——本例中是 <code>gather_list</code> 对象：</p>
+<d-code block="" language="python">
+            def example_gather():
+                tensor = torch.tensor([dist.get_rank() + 1] * 5, dtype=torch.float32).cuda()
+                if dist.get_rank() == 0:
+                    gather_list = [
+                        torch.zeros(5, dtype=torch.float32).cuda()
+                        for _ in range(dist.get_world_size())
+                        ]
+                else:
+                    gather_list = None
+                print(f"Before gather on rank {dist.get_rank()}: {tensor}")
+                dist.gather(tensor, gather_list, dst=0)
+                if dist.get_rank() == 0:
+                    print(f"After gather on rank 0: {gather_list}")
+                
+            init_process()
+            example_gather()
+        </d-code>
+<p>可以看到，<code>gather_list</code> 确实包含了所有 rank 的张量：</p>
+<d-code block="" language="python">
+            Before gather on rank 0: tensor([1., 1., 1., 1., 1.], device='cuda:0')
+            Before gather on rank 1: tensor([2., 2., 2., 2., 2.], device='cuda:1')
+            Before gather on rank 2: tensor([3., 3., 3., 3., 3.], device='cuda:2')
+
+            After gather on rank 0: [tensor([1., 1., 1., 1., 1.], device='cuda:0'),
+                                     tensor([2., 2., 2., 2., 2.], device='cuda:0'),
+                                     tensor([3., 3., 3., 3., 3.], device='cuda:0')]
+        </d-code>
+<p>AllGather 示例唯一需要改动的地方是：每个节点都需要一个存放结果的占位对象：</p>
+<d-code block="" language="python">
+            def example_all_gather():
+                tensor = torch.tensor([dist.get_rank() + 1] * 5, dtype=torch.float32).cuda()
+                gather_list = [
+                    torch.zeros(5, dtype=torch.float32).cuda()
+                    for _ in range(dist.get_world_size())
+                    ]
+                print(f"Before all_gather on rank {dist.get_rank()}: {tensor}")
+                dist.all_gather(gather_list, tensor)
+                print(f"After all_gather on rank {dist.get_rank()}: {gather_list}")
+                
+            init_process()
+            example_all_gather()
+        </d-code>
+<p>这里可以看到，每个节点现在都拥有全部数据：</p>
+<d-code block="" language="python">
+            Before all_gather on rank 0: tensor([1., 1., 1., 1., 1.], device='cuda:0')
+            Before all_gather on rank 1: tensor([2., 2., 2., 2., 2.], device='cuda:1')
+            Before all_gather on rank 2: tensor([3., 3., 3., 3., 3.], device='cuda:2')
+
+            After all_gather on rank 0: [tensor([1., 1., 1., 1., 1.], device='cuda:0'),
+                                         tensor([2., 2., 2., 2., 2.], device='cuda:0'),
+                                         tensor([3., 3., 3., 3., 3.], device='cuda:0')]
+            After all_gather on rank 1: [tensor([1., 1., 1., 1., 1.], device='cuda:1'),
+                                         tensor([2., 2., 2., 2., 2.], device='cuda:0'),
+                                         tensor([3., 3., 3., 3., 3.], device='cuda:0')]
+            After all_gather on rank 2: [tensor([1., 1., 1., 1., 1.], device='cuda:2'),
+                                         tensor([2., 2., 2., 2., 2.], device='cuda:2'),
+                                         tensor([3., 3., 3., 3., 3.], device='cuda:2')]
+        </d-code>
+<p>那么 Gather 的逆操作呢？此时全部数据都在一个节点上，我们希望把它分发/切分到各节点，中间可能还伴随一些处理。为此可以使用 Scatter；若在分发之前先对数据执行某种操作，则使用 ReduceScatter 模式。</p>
+<a id="scatter_&amp;_reducescatter"></a><h4 id="scatter_&amp;_reducescatter">Scatter &amp; ReduceScatter</h4>
+<p>顾名思义，Scatter 操作的目标是取一个节点上的数据并把它散射到所有节点，其做法是给每个节点分发数据的一个切片。因此它不同于 Broadcast 操作——后者给每个节点发送一份完整的数据副本而不做切片；它也是 Gather 操作在逻辑上的逆操作。</p>
+<p>ReduceScatter 模式稍微复杂一些。与 AllReduce 一样，你对来自所有节点的数据应用某种操作。但与 AllReduce 中每个节点都收到完整输出张量不同，在 ReduceScatter 中每个节点只收到输出张量的一片。下图展示了这些操作之间的区别：</p>
+<p style="text-align: center"><img alt="image.png" src="/assets/images/a0_scatter_reducescatter.png" style="width: 1000px"/></p>
+<p>Scatter 操作在代码中的写法与 Gather 相反：我们不再准备一个张量列表作为目标，而是把源数据准备成一个我们想分发出去的张量列表。我们还需要指定 <code>src</code>：</p>
+<d-code block="" language="python">
+            def example_scatter():
+                if dist.get_rank() == 0:
+                    scatter_list = [
+                        torch.tensor([i + 1] * 5, dtype=torch.float32).cuda()
+                        for i in range(dist.get_world_size())
+                        ]
+                    print(f"Rank 0: Tensor to scatter: {scatter_list}")
+                else:
+                    scatter_list = None
+                tensor = torch.zeros(5, dtype=torch.float32).cuda()
+                print(f"Before scatter on rank {dist.get_rank()}: {tensor}")
+                dist.scatter(tensor, scatter_list, src=0)
+                print(f"After scatter on rank {dist.get_rank()}: {tensor}")
+                
+            init_process()
+            example_scatter()
+        </d-code>
+<p>结果就是，这些空张量被 <code>scatter_list</code> 的内容填充</p>
+<d-code block="" language="python">
+            Rank 0: Tensor to scatter: [tensor([1., 1., 1., 1., 1.], device='cuda:0'),
+                                        tensor([2., 2., 2., 2., 2.], device='cuda:0'),
+                                        tensor([3., 3., 3., 3., 3.], device='cuda:0')]
+            Before scatter on rank 0: tensor([0., 0., 0., 0., 0.], device='cuda:0')
+            Before scatter on rank 1: tensor([0., 0., 0., 0., 0.], device='cuda:1')
+            Before scatter on rank 2: tensor([0., 0., 0., 0., 0.], device='cuda:2')
+
+            After scatter on rank 0: tensor([1., 1., 1., 1., 1.], device='cuda:0')
+            After scatter on rank 1: tensor([2., 2., 2., 2., 2.], device='cuda:1')
+            After scatter on rank 2: tensor([3., 3., 3., 3., 3.], device='cuda:2')
+        </d-code>
+<p>我们构造一些更有意思的数据来演示 ReduceScatter 的逻辑。在每个节点上，我们创建一个由二元向量组成的列表，其中幂指数和偏移量都是节点 rank 的函数：</p>
+<d-code block="" language="python">
+            def example_reduce_scatter():
+                rank = dist.get_rank()
+                world_size = dist.get_world_size()
+                input_tensor = [
+                    torch.tensor([(rank + 1) * i for i in range(1, 3)], dtype=torch.float32).cuda()**(j+1) 
+                    for j in range(world_size)
+                    ]
+                output_tensor = torch.zeros(2, dtype=torch.float32).cuda()
+                print(f"Before ReduceScatter on rank {rank}: {input_tensor}")
+                dist.reduce_scatter(output_tensor, input_tensor, op=dist.ReduceOp.SUM)
+                print(f"After ReduceScatter on rank {rank}: {output_tensor}")    
+    
+            init_process()
+            example_reduce_scatter()
+        </d-code>
+<p>这些 print 语句揭示了我们所创建数据的模式。我们也能立刻看到 ReduceScatter 模式在起作用——第一个 rank 收到了各节点第一个张量之和，第二个 rank 收到各节点第二个张量之和，依此类推：</p>
+<d-code block="" language="python">
+            Before ReduceScatter on rank 0: [tensor([1., 2.], device='cuda:0'),
+											                       tensor([1., 4.], device='cuda:0'),
+											                       tensor([1., 8.], device='cuda:0')]
+            Before ReduceScatter on rank 1: [tensor([2., 4.], device='cuda:1'),
+                                             tensor([4., 16.], device='cuda:1'),
+                                             tensor([8., 64.], device='cuda:1')]
+            Before ReduceScatter on rank 2: [tensor([3., 6.], device='cuda:2'),
+                                             tensor([9., 36.], device='cuda:2'),
+                                             tensor([27., 216.], device='cuda:2')]
+
+            After ReduceScatter on rank 0: tensor([6., 12.], device='cuda:0')
+            After ReduceScatter on rank 1: tensor([14., 56.], device='cuda:1')
+            After ReduceScatter on rank 2: tensor([36., 288.], device='cuda:2')
+        </d-code>
+<p>接下来，我们快速看一下 AllReduce 的一种常见实现，它使用 ReduceScatter 和 AllGather：Ring AllReduce。</p>
+<a id="ring_allreduce"></a><h4 id="ring_allreduce">Ring AllReduce</h4>
+<p><strong><em>Ring AllReduce</em></strong> 是 AllReduce 的一种针对可扩展性优化的具体实现。让所有设备直接彼此通信可能造成通信瓶颈，Ring AllReduce 则不然，它可以拆解为两个关键步骤：ReduceScatter 和 AllGather。它的工作方式如下：</p>
+<ol>
+<li><strong>ReduceScatter</strong></li>
+<ul>
+<li>每块设备把自己的数据（例如梯度）切成 N 个分块（N 为 GPU 数量），并把其中一个分块发送给相邻设备。与此同时，每块设备从另一侧的相邻设备接收一个分块。</li>
+<li>每块设备收到一个分块后，就把自己对应的分块加到收到的分块上（即规约）。</li>
+<li>这个过程沿环持续进行，直到每块设备都持有一个完全规约后的分块，它代表该分块在所有设备上的梯度之和。</li>
+</ul>
+<li><strong>AllGather</strong></li>
+<ul>
+<li>现在，每块设备需要从其他设备收集这些完全规约后的分块。</li>
+<li>每块设备把自己规约好的分块发送给相邻设备，并从另一侧的相邻设备接收规约好的分块。</li>
+<li>设备持续转发收到的分块，直到每块设备都拥有全部完全规约后的分块，从而让每块设备都拿到完整的、求和后的梯度。</li>
+</ul></ol>
+<p>我们用下面的动图来说明这一过程：这里有 5 块 GPU，每块各持有一个长度为 5 的张量。第一段动画展示 ReduceScatter 步骤，在该步骤结束时，每块 GPU 会收到某个特定数据分块（橙色矩形）的规约结果。</p>
+<p style="text-align: center"><img alt="image.png" src="/assets/images/a0_reduce_scatter.gif" style="width: 400px"/></p>
+<p>下一段动画展示 AllGather 步骤，在该步骤结束时，每块 GPU 都得到 AllReduce 操作的完整结果：</p>
+<p style="text-align: center"><img alt="image.png" src="/assets/images/a0_all_gather.gif" style="width: 400px"/></p>
+<p>你也许已经注意到，在 ReduceScatter 和 AllGather 两个步骤中，<d-math>N</d-math> 块 GPU 中的每一块都发送和接收了 <d-math>N-1</d-math> 次数据。每次传输中，每块 GPU 发送 <d-math>\frac{K}{N}</d-math> 个值，其中 <d-math>K</d-math> 是正在各 GPU 间求和的数组中值的总数。因此，每块 GPU 收发的数据总量为 <d-math>2 \times (N-1) \times \frac{K}{N}</d-math>。当 <d-math>N</d-math>（GPU 数量）很大时，每块 GPU 收发的数据总量约为 <d-math>2 \times K</d-math>，其中 <d-math>K</d-math> 是参数总数。</p>
+<p><strong>关于 AllReduce，有两点需要记住：</strong></p>
+<ol>
+<li>当 <d-math>N</d-math>（GPU 数量）很大时，AllReduce 的通信开销约为 <d-math>2 \times K</d-math>。</li>
+<li>一次 AllReduce 操作可以拆解为一次 ReduceScatter 后接一次 AllGather。这两个操作的通信开销是 AllReduce 的一半，约为 <d-math>K</d-math>。</li>
+</ol>
+<p>可以看到，这种实现甚至能高效利用节点间有限的带宽。</p>
+<p>到这里，你已经看到了分布式操作的主要构件——但在实际运用它们之前，我们先看看一个用于同步的特殊操作：Barrier 操作。</p>
+<a id="barrier"></a><h4 id="barrier">Barrier</h4>
+<p><strong><em>Barrier</em></strong> 是一个用于同步所有节点的简单操作。在所有节点都到达屏障之前，屏障不会解除；只有到那时，节点才被允许继续执行后续计算：</p>
+<p style="text-align: center"><img alt="image.png" src="/assets/images/a0_barrier.png" style="width: 400px"/></p>
+<p>我们可以很方便地模拟延迟节点：给每个节点设置不同的 sleep 时间，然后看所有节点都通过屏障需要多久：</p>
+<d-code block="" language="python">
+            def example_barrier():
+                rank = dist.get_rank()
+                t_start = time.time()
+                print(f"Rank {rank} sleeps {rank} seconds.")
+                time.sleep(rank)  # Simulate different processing times
+                dist.barrier()
+                print(f"Rank {rank} after barrier time delta: {time.time()-t_start:.4f}")
+    
+            init_process()
+            example_barrier()
+        </d-code>
+<p>可以看到，尽管第一个 rank 完全没有 sleep，它同样花了 2 秒才通过屏障：</p>
+<d-code block="" language="python">
+            Rank 0 sleeps 0 seconds.
+            Rank 1 sleeps 1 seconds.
+            Rank 2 sleeps 2 seconds.
+
+            Rank 0 after barrier time delta: 2.0025
+            Rank 1 after barrier time delta: 2.0025
+            Rank 2 after barrier time delta: 2.0024
+        </d-code>
+<p>像这样同步所有节点需要谨慎，因为这会破坏并行独立操作的意义，进而可能拖慢整体处理速度。在很多情况下，让一个快节点先于其他节点开始处理下一个任务并无大碍，因为这个快节点在下一轮迭代中可能变慢，从而在整个过程中把延迟摊平。</p>
+<p>在转向实际的分布式训练实现之前，我们先解开一个谜团：NCCL 到底是什么？</p>
+<a id="nccl"></a><h4 id="nccl">NCCL</h4>
+<p>在大量 GPU 上训练大模型时，我们有时会挖到金子，但总会遇到镍（nickel，也就是 NCCL 🥁）！那是什么？</p>
+<p>有若干实现集合通信并被 PyTorch 支持的库：经典的有 <strong><em>MPI</em></strong>（Message Passing Interface）、Meta 的 <strong><em>Gloo</em></strong>，以及最后的 NCCL（NVIDIA Collective Communications Library）。它们在集合通信模式方面提供类似的功能，但针对不同的硬件配置做了优化——NCCL 旨在高效地服务 GPU-GPU 通信，而 MPI 和 Gloo 则为 CPU-CPU 或 CPU-GPU 通信而设计。PyTorch 提供了一份<a href="https://pytorch.org/docs/stable/distributed.html#which-backend-to-use">很好的指南</a>来帮助决定使用哪个，但归根结底是：</p>
+<ul>
+<li>GPU 训练：使用 NCCL</li>
+<li>CPU 训练：使用 Gloo</li>
+</ul>
+<p>决策树中还有一些更细的要点，我们留给读者在上文引用的 PyTorch 指南中自行探索。</p>
+<a id="a1:_distributed_training_profiling"></a><h3 id="a1:_distributed_training_profiling">A1：分布式训练性能分析</h3>
+<a id="kernels"></a><h4 id="kernels">内核</h4>
+<p>先假设这些内核已经集成进 PyTorch。作为一个简单例子，我们可以看 PyTorch 中以 <code>torch.nn.functional.layer_norm</code> 实现的层归一化函数。有多种方法可以对该函数底层的内核做性能分析。最直接的做法或许是使用 Python 的 <code>time</code> 模块。然而，由于 CUDA 操作是异步的，用这种方法计时只会捕获 Python 中启动内核的开销，而不是内核本身的真实执行时间。</p>
+<p>为解决这个问题，我们可以使用 <code>torch.cuda.Event</code> 进行精确计时，并用 <code>torch.cuda.synchronize()</code> 指令确保我们等待内核执行完成。下面的代码片段演示了这一做法：</p>
+<d-code block="" language="python">
+            def profile_pytorch(func, input):
+                # Create CUDA events to track time. CUDA operations are asynchronous.
+                start = torch.cuda.Event(enable_timing=True)  # Event to mark the start time
+                end = torch.cuda.Event(enable_timing=True)    # Event to mark the end time
+                # Warm up to eliminate any overhead from the first run, which might not reflect 
+                # the actual performance
+                for _ in range(10):
+                    func(input)
+                # Record the start time before executing the function
+                start.record()  
+                func(input)  # Call the function we want to profile
+                # Record the end time after the function has completed
+                end.record()  
+                # Synchronize the CUDA operations to ensure all operations are completed
+                # before measuring the elapsed time
+                torch.cuda.synchronize()  
+                # Calculate and return the elapsed time in milliseconds
+                return start.elapsed_time(end)
+        </d-code>
+<p>更高效的分析方法是使用 PyTorch Profiler，正如<a href="#profiling_gpu_compute_and_communication" target="_self">前文所述</a>。例如，考虑下面这段代码：</p>
+<d-code block="" language="python">
+            import torch
+            import torch.nn.functional as F
+
+            def pytorch_layer_norm(input):
+                return F.layer_norm(input, input.size()[1:])
+
+            a = torch.randn(10000, 10000).cuda()
+
+            with torch.profiler.profile(
+                activities=[
+                    torch.profiler.ProfilerActivity.CPU,  # Profile CPU activities
+                    torch.profiler.ProfilerActivity.CUDA,  # Profile CUDA activities
+                ],
+                # Define a schedule for the profiler
+                schedule=torch.profiler.schedule(
+                    wait=1,      # Wait for 1 iteration before starting to profile
+                    warmup=3,    # Warm up for 3 iterations to stabilize performance
+                    active=2,    # Profile for 2 active iterations
+                    repeat=1,    # Repeat the profiling schedule once
+                ),
+                on_trace_ready=torch.profiler.tensorboard_trace_handler('.'),
+                
+            ) as p:
+                for iter in range(10):
+                    pytorch_layer_norm(a)
+                    p.step()
+
+            # Print a table of the profiling results, sorted by total CUDA time, limited to the top 10 entries
+            print(p.key_averages().table(sort_by="cuda_time_total", row_limit=8))
+        </d-code>
+<p>这会打印按 CUDA 总时间排序的汇总分析结果，输出如下：</p>
+<div class="large-image-background-transparent">
+<div class="boxed-image">
+<img alt="image.png" src="/assets/images/a1_kernels.png" style="width: 1200px; max-width: none;"/>
+</div>
+</div>
+<p>你也可以像我们之前提到的那样，在 <em>chrome://tracing/</em> 上查看追踪。</p>
+<div class="note-box">
+<p class="note-box-title">💡 Tip</p>
+<div class="note-box-content">
+<p>如果你初用这个工具，可以用左右方向键在追踪中导航。此外，按住 Alt 键并用鼠标左右滚动，即可放大和缩小。</p>
+</div>
+</div>
+<p>放大之后，你可以在该追踪中观察调用 <code>layer_norm</code> 时操作的流动过程：</p>
+<div class="large-image-background-transparent">
+<div class="boxed-image">
+<img alt="image.png" src="/assets/images/a1_profile_trace.png" style="width: 1200px; max-width: none;"/>
+</div>
+</div>
+<p>该序列从 CPU（上方区域）开始，先调用 <code>aten::layer_norm</code>，再进入 <code>aten::native_layer_norm</code>，随后转到 <code>cudaLaunchKernel</code>。从这里进入 GPU，在那里调用 <code>vectorized_layer_norm_kernel</code> 内核。</p>
+<div class="note-box">
+<p class="note-box-title">📝 Note</p>
+<div class="note-box-content">
+<p>在性能分析器中把 <code>profile_memory</code> 设为 <code>True</code> 即可启用显存分析。不过，这会让追踪结果变得更为复杂。</p>
+</div>
+</div>
+<p>PyTorch 性能分析器提供快速的性能概览，而 NVIDIA Nsight Compute CLI（<code>ncu</code>）则能深入揭示 GPU 性能，包括每个内核的详细执行时间和显存使用情况。运行该分析器很简单：</p>
+<d-code block="" language="bash">
+            ncu --set full python layer_norm.py
+        </d-code>
+<p>其中 <em>layer_norm.py</em> 是一个直接执行层归一化函数的简单文件。该命令会生成日志输出，但更有效的可视化方式是设置输出标志：</p>
+<d-code block="" language="bash">
+            ncu --set full -o output python layer_norm.py
+        </d-code>
+<p>随后用 Nsight Compute 打开 <em>output.ncu-rep</em> 文件，你会看到类似下面的视图，其中包含关于算力与显存利用率的明确警告，以及关于如何让内核更好地平衡算力与显存、达到最大占用率的建议：</p>
+<div class="large-image-background-transparent">
+<div class="boxed-image">
+<img alt="image.png" src="/assets/images/a1_ncu.png" style="width: 1200px; max-width: none;"/>
+</div>
+</div>
+<a id="cpp_extension"></a><h4 id="cpp_extension">CPP 扩展</h4>
+<p>如果你想分析的内核尚未集成到 PyTorch 中，可以用 PyTorch 的 <code>cpp_extension</code> 模块方便地编译并运行自定义 CUDA 代码。流程很直接——只需在 <em>.cu</em> 文件中编写 CUDA 内核，再用 <code>load</code> 函数从 <code>cpp_extension</code> 模块把它加载到 Python 中。</p>
+<p><em>.cu</em> 文件对于简单的 <code>add</code> 内核而言大致如下：</p>
+<d-code block="" language="clike">
+            #include <torch extension.h="">
+            #include <cuda.h>
+            #include <cuda_runtime.h>
+
+            __global__ void add_kernel(float* x, float* y, float* output, int size) {
+                int index = blockIdx.x * blockDim.x + threadIdx.x;
+                if (index &lt; size) {
+                    output[index] = x[index] + y[index];
+                }
+            }
+
+            void add_cuda(torch::Tensor x, torch::Tensor y, torch::Tensor output) {
+                int threads = 1024;
+                int blocks = (x.size(0) + threads - 1) / threads;
+
+                add_kernel&lt;&lt;<blocks, threads="">&gt;&gt;(x.data_ptr<float>(), y.data_ptr<float>(), output.data_ptr<float>(), x.size(0));
+            }
+            PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
+                m.def("add_cuda", &amp;add_cuda, "Vector addition (CUDA)");
+            }
+        </float></float></float></blocks,></cuda_runtime.h></cuda.h></torch></d-code>
+<p>下面是加载该内核的 Python 文件：</p>
+<d-code block="" language="python">
+            import torch
+            from torch.utils.cpp_extension import load
+
+            # Load and compile the CUDA extension
+            vector_add = load(
+                name="vector_add",
+                sources=["add_kernel.cu"],
+                verbose=True
+            )
+
+            # Define input tensors
+            size = 10000
+            x = torch.randn(size, device='cuda')
+            y = torch.randn(size, device='cuda')
+            output = torch.empty(size, device='cuda')
+
+            # Run the CUDA kernel
+            vector_add.add_cuda(x, y, output)
+        </d-code>
+<p>用这种方法，你可以像前面演示的那样，用 PyTorch 性能分析器或 NVIDIA 工具来分析自定义 CUDA 内核。</p>
+<a id="a2:_typical_scales_in_llm_training"></a><h3 id="a2:_typical_scales_in_llm_training">A2：LLM 训练中的典型规模</h3>
+<p>我们先大致感受一下 LLM 训练中各类内容的典型规模。当我们谈论显存或算力时，通常是在数“元素”——可以把它理解为张量中的数字个数。要得到实际的显存字节数，需要乘以每个数字的大小（例如 BF16 为 2 字节，FP32 为 4 字节）。</p>
+<p>以下是一些粗略的量级参考：</p>
+<ul>
+<li><strong>输入 token：</strong> 每个批次我们处理 <d-math>seq \cdot mbs</d-math> 个 token，其中 <d-math>mbs</d-math> 是微批大小，<d-math>seq</d-math> 是序列长度。</li>
+<li><strong>激活（隐藏状态）：</strong> 对于单个层，隐藏状态张量的大小为 <d-math>seq \cdot mbs \cdot h</d-math> 个元素。</li>
+<li><strong>模型权重与梯度：</strong> 模型中的每个权重矩阵（例如线性层）大约包含 <d-math>h^2</d-math> 个元素。梯度与权重大小相同。</li>
+<li><strong>优化器状态：</strong> 对于每个权重矩阵（<d-math>h^2</d-math> 个元素），混合精度训练下的 Adam 这类优化器会以 FP32 精度保存动量与方差状态（<d-math>2 \times 2 h^2</d-math>），再加上 FP32 的主权重（<d-math>2  h^2</d-math>）。因此，每个权重矩阵的优化器状态总数约为 <d-math>6 h^2</d-math>。</li>
+<li><strong>Total model parameters:</strong> Each transformer block will store:
+                <ul>
+<li>Attention parameters:
+                        <ul>
+<li>QKV 投影：<d-math>3h^2</d-math> 个参数</li>
+<li>输出投影：<d-math>h^2</d-math> 个参数</li>
+</ul>
+</li>
+<li>MLP parameters with Gated Linear Units (GLU):
+                        <ul>
+<li>门控与上投影：<d-math>8h^2</d-math> 个参数（2 个大小为 <d-math>h \times 4h</d-math> 的矩阵）</li>
+<li>下投影：<d-math>4h^2</d-math> 个参数（1 个大小为 <d-math>4h \times h</d-math> 的矩阵）</li>
+</ul>
+</li>
+<li>每个模块总计：使用 GLU MLP 时为 <d-math>16h^2</d-math>，不使用 GLU 时为 <d-math>12h^2</d-math></li>
+<li>整个模型：<d-math>16h^2 \cdot num\_layers</d-math>（使用 GLU）</li>
+<li>Additional parameters:
+                        <ul>
+<li>输入嵌入：<d-math>vocab\_size \cdot h</d-math></li>
+<li>LM head：<d-math>vocab\_size \cdot h</d-math>（如果不与输入嵌入共享权重）</li>
+<li>位置嵌入（如果使用）：<d-math>max\_seq\_len \cdot h</d-math></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><strong>前向与反向传播的算力（FLOPS）：</strong> 前向传播 FLOPS 的一个非常粗略的估计是 <d-math>2 \cdot num\_tokens \cdot num\_params</d-math>。反向传播的算力是它的两倍：<d-math>4 \cdot num\_tokens \cdot num\_params</d-math>。</li>
+<div class="note-box">
+<p class="note-box-title">📝 Note</p>
+<div class="note-box-content">
+<p>更准确的前向+反向传播 FLOPs 公式是 <d-math>6 \cdot seq\_len \cdot num\_params + 12 \cdot num\_layers \cdot h \cdot seq\_len^2</d-math>，它考虑了整个序列上注意力操作带来的二次方缩放，但为简化计算，我们假设 <d-math>seq\_len^2 &lt;&lt; h</d-math>。</p>
+</div>
+</div>
+</ul>
+<a id="a3:_math_for_compute/communication_overlap"></a><h3 id="a3:_math_for_compute/communication_overlap">A3：算力/通信重叠的计算</h3>
+<p>使用上一节的公式，我们可以估计分布式训练中计算与通信何时能够有效重叠。以数据并行（ZeRO-0）为例。</p>
+<a id="data_parallelism_communication_analysis"></a><h4 id="data_parallelism_communication_analysis">数据并行的通信分析</h4>
+<p>需要通信的梯度总量为：</p>
+<ul>
+<li>梯度 = 参数 ≈ <d-math>num\_layers \cdot 16h^2</d-math></li>
+</ul>
+<p>在反向传播过程中，这些梯度按桶（默认大小为 25 MB）进行通信。对每个桶执行全规约的通信时间为：</p>
+<d-math block="">
+        t_{comm} = t_{comm\_bucket} = \frac{bucket\_size \cdot 2(DP-1)}{DP \cdot peak\_bw}
+        </d-math>
+<div class="note-box">
+<p class="note-box-title">📝 Note</p>
+<div class="note-box-content">
+<p>计算带宽时，我们使用 <a href="https://github.com/NVIDIA/nccl-tests/blob/master/doc/PERFORMANCE.md#summary">NCCL 文档</a> 中的总线带宽公式。这些公式在计算 GPU 之间的有效带宽时，会考虑具体的通信模式。</p>
+</div>
+</div>
+<p>反向传播的计算时间为：</p>
+<d-math block="">
+        t_{compute} = \frac{4 \cdot num\_tokens \cdot num\_params}{peak\_flops}
+        </d-math>
+<p>为实现有效重叠，我们需要：</p>
+<d-math block="">
+        \frac{t_{comm}}{t_{compute}} = \frac{num\_params}{2 \cdot num\_tokens} \cdot \frac{DP-1}{DP} \cdot \frac{peak\_flops}{peak\_bw} \leq 1
+        </d-math>
+<p>该比值有助于判断通信是否会成为训练的瓶颈。当比值小于 1 时，通信可以完全与计算重叠。</p>
+<a id="zero-3_(fsdp)_communication_analysis"></a><h4 id="zero-3_(fsdp)_communication_analysis">ZeRO-3（FSDP）的通信分析</h4>
+<p>对于 ZeRO-3，参数和梯度会分片到各 GPU 上。我们来分析每个 transformer 模块包含 <d-math>16h^2</d-math> 个参数的模型的通信模式：</p>
+<ul>
+<li>For each transformer block in the forward pass:
+                <ul>
+<li>全收集参数：每个 rank <d-math>16h^2/DP</d-math> 字节</li>
+</ul>
+</li>
+<li>For each transformer block in the backward pass:
+                <ul>
+<li>全收集参数：每个 rank <d-math>16h^2/DP</d-math> 字节</li>
+<li>规约散射梯度：每个 rank <d-math>16h^2/DP</d-math> 字节</li>
+</ul>
+</li>
+<li>每个模块的总通信量：<d-math>3 \cdot 16h^2/DP</d-math> 字节</li>
+<li>整个模型的总通信量：<d-math>3 \cdot num\_layers \cdot 16h^2/DP</d-math> 字节</li>
+</ul>
+<p>全收集操作的通信时间为：</p>
+<d-math block="">
+        t_{comm} = 16h^2 \cdot \frac{DP-1}{DP \cdot peak\_bw}
+        </d-math>
+<p>一个解码器层前向传播的计算时间为：</p>
+<d-math block="">
+        t_{compute} = \frac{2 \cdot seq\_len \cdot mbs \cdot (16 \cdot h^2)}{peak\_flops} = \frac{32 \cdot seq\_len \cdot mbs \cdot h^2}{peak\_flops}
+        </d-math>
+<p>为实现计算与通信的有效重叠，我们需要：</p>
+<d-math block="">
+        \frac{t_{comm}}{t_{compute}} = \frac{1}{2 \cdot seq\_len \cdot mbs} \cdot \frac{DP-1}{DP} \cdot \frac{peak\_flops}{peak\_bw} \leq 1
+        </d-math>
+<p>当该比值小于 1 时，下一层参数的通信可以隐藏在当前层的计算之后。</p>
+`
+        <a id="tp_communication_analysis"></a><h4 id="tp_communication_analysis">TP 的通信分析</h4>
+<p>对于张量并行，激活会在 <a href="#sequence_parallelism" target="_self">TP 区域</a>（例如 MLP 模块）内分片到各 GPU 上。我们来分析其通信模式：</p>
+<ul>
+<li>For each column-linear operation in the forward pass:
+                <ul>
+<li>全收集激活：每个 rank <d-math>seq \cdot mbs \cdot h/TP</d-math> 字节</li>
+</ul>
+</li>
+<li>For each column-linear operation in the backward pass:
+                <ul>
+<li>规约散射梯度：每个 rank <d-math>seq \cdot mbs \cdot h/TP</d-math> 字节</li>
+</ul>
+</li>
+<li>行线性操作则相反。每个 transformer 模块包含 2 个列线性操作和 2 个行线性操作。</li>
+<li>每个模块的总通信量：<d-math>8 \cdot seq \cdot mbs \cdot h/TP</d-math> 字节</li>
+<li>整个模型的总通信量：<d-math>8 \cdot num\_layers \cdot seq \cdot mbs \cdot h/TP</d-math> 字节</li>
+</ul>
+<p>我们取层内的一个 TP 区域，分析能否将全收集通信与下一个线性层的计算重叠。全收集操作的通信时间为：</p>
+<d-math block="">
+        t_{comm} = \frac{seq \cdot mbs \cdot h \cdot (TP-1)}{TP \cdot peak\_bw}
+        </d-math>
+<p>而下一个线性层（参数为 <d-math>h^2</d-math>）的计算时间为：</p>
+<d-math block="">
+        t_{compute} = \frac{2 \cdot seq \cdot mbs \cdot h^2}{TP \cdot peak\_flops}
+        </d-math>
+<p>为实现有效重叠，我们希望通信时间小于计算时间：</p>
+<d-math block="">
+        \frac{t_{comm}}{t_{compute}} = \frac{TP-1}{2 \cdot h} \cdot \frac{peak\_flops}{peak\_bw} \leq 1
+        </d-math>
+<p>该比值告诉我们能否成功地把全收集通信隐藏在下一个线性层的计算之后。有意思的是，该比值只取决于隐藏维度 <d-math>h</d-math> 和张量并行度 <d-math>tp</d-math>，与序列长度和批大小无关。</p>
+<a id="pp_communication_analysis"></a><h4 id="pp_communication_analysis">PP 的通信分析</h4>
+<p>对于流水线并行，激活和梯度在流水线阶段之间通信。我们来分析其通信模式：</p>
+<ul>
+<li>For each micro-batch in the forward pass:
+                <ul>
+<li>接收并发送激活：<d-math>2 \cdot seq \cdot mbs \cdot h</d-math> 字节</li>
+</ul>
+</li>
+<li>For each micro-batch in the backward pass:
+                <ul>
+<li>接收并发送梯度：<d-math>2 \cdot seq \cdot mbs \cdot h</d-math> 字节</li>
+</ul>
+</li>
+<li>每个微批的总通信量：<d-math>4 \cdot seq \cdot mbs \cdot h</d-math> 字节</li>
+<li>对于梯度累积步（<d-math>gas</d-math>），总通信量：<d-math>4 \cdot gas \cdot seq \cdot mbs \cdot h</d-math> 字节</li>
+</ul>
+<p>我们来分析能否将激活/梯度的通信与下一个 transformer 模块的计算重叠。下一个流水线阶段中 transformer 模块的计算时间为：</p>
+<d-math block="">
+        t_{compute} = \frac{32 \cdot seq \cdot mbs \cdot h^2 \cdot num\_layers\_in\_next\_pp}{peak\_flops}
+        </d-math>
+<p>而点对点传输的通信时间为：</p>
+<d-math block="">
+        t_{comm} = \frac{seq \cdot mbs \cdot h}{peak\_bw}
+        </d-math>
+<p>为实现有效重叠，我们希望：</p>
+<d-math block="">
+        \frac{t_{comm}}{t_{compute}} = \frac{peak\_flops}{32 \cdot h \cdot num\_layers\_in\_next\_pp \cdot peak\_bw} \leq 1
+        </d-math>
+<p>与 TP 一样，这个比值不依赖于序列长度和批大小。它取决于隐藏维度 <d-math>h</d-math>、下一个流水线阶段中的层数，以及硬件计算能力与 P2P 带宽能力之比。</p>
+</d-article>
+<d-appendix>
+<d-bibliography src="bibliography.bib"></d-bibliography>
+<style>
+            d-appendix .citation {
+                font-size: 11px;
+                line-height: 15px;
+                border-left: 1px solid rgba(0, 0, 0, 0.1);
+                padding-left: 18px;
+                border: 1px solid rgba(0, 0, 0, 0.1);
+                background: rgba(0, 0, 0, 0.02);
+                padding: 10px 18px;
+                border-radius: 3px;
+                color: rgba(150, 150, 150, 1);
+                overflow: hidden;
+                margin-top: -12px;
+                white-space: pre-wrap;
+                word-wrap: break-word;
+            }
+        </style>
+<h3 id="citation">引用</h3>
+<p>学术场景中请按以下格式引用本作品：</p>
+<pre class="citation short">Tazi et al., "The Ultra-Scale Playbook: Training LLMs on GPU Clusters", 2025.</pre>
+<p>BibTeX 引用</p>
+<pre class="citation long">@misc{ultrascale_playbook,
+      title={超大规模训练实战手册：在 GPU 集群上训练 LLM},
+      author={Nouamane Tazi, Ferdinand Mom, Haojun Zhao, Phuc Nguyen, Mohamed Mekkouri, Leandro Werra, Thomas Wolf},
+      year={2025},
+}</pre>
+</d-appendix>
+<script>
+      function toggleTOC() {
+          const content = document.querySelector('.toc-content');
+          const icon = document.querySelector('.toggle-icon');
+          
+          content.classList.toggle('collapsed');
+          icon.classList.toggle('collapsed');
+      }
+    </script>
+<script>
+        const article = document.querySelector('d-article');
+        const toc = document.querySelector('d-contents');
+        if (toc) {
+            const headings = article.querySelectorAll('h2, h3, h4');
+            // let ToC = `<nav role="navigation" class="l-text figcaption"><h3>Table of contents</h3>`;
+            let ToC = `<nav role="navigation" class="l-text figcaption"><div class="toc-header" onclick="toggleTOC()">
+            <span class="toc-title">目录</span>
+            <span class="toggle-icon">▼</span>
+            </div><div class="toc-content">`;
+            let prevLevel = 0;
+
+            for (const el of headings) {
+                // should element be included in TOC?
+                const isInTitle = el.parentElement.tagName == 'D-TITLE';
+                const isException = el.getAttribute('no-toc');
+                if (isInTitle || isException) continue;
+                el.setAttribute('id', el.textContent.toLowerCase().replaceAll(" ", "_"))
+                const link = '<a target="_self" href="' + '#' + el.getAttribute('id') + '">' + el.textContent + '</a>';
+
+                const level = el.tagName === 'H2' ? 0 : (el.tagName === 'H3' ? 1 : 2);
+                while (prevLevel < level) {
+                    ToC += '<ul>'
+                    prevLevel++;
+                }
+                while (prevLevel > level) {
+                    ToC += '</ul>'
+                    prevLevel--;
+                }
+                if (level === 0)
+                    ToC += '<div>' + link + '</div>';
+                else
+                // else if (level === 1)
+                    ToC += '<li>' + link + '</li>';
+            }
+
+            while (prevLevel > 0) {
+                ToC += '</ul>'
+                prevLevel--;
+            }
+            ToC += '</div></nav>';
+            toc.innerHTML = ToC;
+            toc.setAttribute('prerendered', 'true');
+            const toc_links = document.querySelectorAll('d-contents > nav div a');
+
+            window.addEventListener('scroll', (_event) => {
+                if (typeof (headings) != 'undefined' && headings != null && typeof (toc_links) != 'undefined' && toc_links != null) {
+                    find_active: {
+                        for (let i = headings.length - 1; i >= 0; i--) {
+                            const heading = headings[i];
+                            // Skip headings that shouldn't be in TOC
+                            if (heading.parentElement.tagName == 'D-TITLE' || heading.getAttribute('no-toc')) {
+                                continue;
+                            }
+                            
+                            if (heading.getBoundingClientRect().top - 50 <= 0) {
+                                // Find matching TOC link by href
+                                const headingId = heading.getAttribute('id');
+                                const activeLink = Array.from(toc_links).find(link => 
+                                    link.getAttribute('href') === '#' + headingId
+                                );
+                                
+                                if (activeLink && !activeLink.classList.contains("active")) {
+                                    toc_links.forEach(link => link.classList.remove("active"));
+                                    activeLink.classList.add('active');
+                                }
+                                break find_active;
+                            }
+                        }
+                        toc_links.forEach(link => link.classList.remove("active"));
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
